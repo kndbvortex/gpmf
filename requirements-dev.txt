@@ -1,0 +1,15 @@
+# Development dependencies
+pytest>=7.0
+pytest-cov>=3.0
+black>=22.0
+mypy>=0.950
+flake8>=4.0
+
+# Optional dependencies for specific features
+# Uncomment as needed:
+
+# For seasonal patterns (MSGP)
+# jpype1>=1.4.0
+
+# For temporal patterns with fuzzy membership
+# scikit-fuzzy>=0.4.0
