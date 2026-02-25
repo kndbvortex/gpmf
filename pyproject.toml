@@ -1,81 +1,87 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "gradual-mining"
-version = "0.1.0"
-description = "Unified Python package for gradual pattern mining"
+version = "0.3.0"
+description = "Unified Python package for gradual pattern mining with multiple algorithms"
 readme = "README.md"
-authors = [
-    {name = ""}
-]
 license = {text = "MIT"}
-requires-python = ">=3.8"
+authors = [
+    {name = "Gradual Mining Team"}
+]
+requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
 ]
-keywords = ["data mining", "pattern mining", "gradual patterns", "knowledge discovery"]
+keywords = ["data mining", "pattern mining", "gradual patterns", "knowledge discovery", "frequent itemsets"]
 
+# Core dependencies — required for all algorithms.
 dependencies = [
     "numpy>=1.20.0",
     "pandas>=1.3.0",
-    "python-dateutil>=2.8.0",
 ]
 
 [project.optional-dependencies]
+# Algorithms that rely on fuzzy / swarm logic (ACO-GRAANK, TGrad)
+fuzzy = [
+    "scikit-fuzzy>=0.4.0",
+    "ypstruct>=0.0.2",
+]
+# Build the optional Rust extension for ParaMiner acceleration
+rust = [
+    "maturin>=1.0",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=3.0",
     "black>=22.0",
     "mypy>=0.950",
-    "flake8>=4.0",
-]
-seasonal = [
-    "jpype1>=1.4.0",  # For SPMF integration
-]
-fuzzy = [
-    "scikit-fuzzy>=0.4.0",  # For temporal patterns
+    "ruff>=0.1.0",
 ]
 all = [
-    "gradual-mining[dev,seasonal,fuzzy]",
+    "gradual-mining[fuzzy,dev]",
 ]
 
 [project.scripts]
 gradual-mine = "gradual_mining.cli:main"
 
-[project.urls]
-Homepage = ""
-Documentation = ""
-Repository = ""
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["gradual_mining"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gradual_mining*"]   # discovers all sub-packages automatically
+exclude = ["tests*", "*.tests*"]
 
 [tool.setuptools.package-data]
-gradual_mining = ["py.typed"]
+gradual_mining = [
+    "py.typed",
+    # Rust source included so users can optionally compile with: maturin develop --release
+    "algorithms/closed/paraminer/Cargo.toml",
+    "algorithms/closed/paraminer/src/*.rs",
+]
 
 [tool.black]
 line-length = 120
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ["py39", "py310", "py311", "py312"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
-addopts = "--verbose --cov=gradual_mining --cov-report=term-missing"
+addopts = "--verbose"
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
