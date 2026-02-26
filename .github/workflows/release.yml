@@ -22,12 +22,12 @@ jobs:
             target: aarch64
             manylinux: auto
 
-          - os: macos-13
+          - os: macos-12
             target: x86_64
             manylinux: ""
 
           - os: macos-latest
-            target: aarch64
+            target: aarch64-apple-darwin
             manylinux: ""
 
           - os: windows-latest
@@ -37,13 +37,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up QEMU (Linux aarch64 cross-compile)
+        if: matrix.target == 'aarch64' && matrix.os == 'ubuntu-latest'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: aarch64
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist
-          # Rust toolchain is installed automatically by maturin-action
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
