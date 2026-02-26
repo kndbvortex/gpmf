@@ -22,10 +22,6 @@ jobs:
             target: aarch64
             manylinux: auto
 
-          - os: macos-12
-            target: x86_64
-            manylinux: ""
-
           - os: macos-latest
             target: aarch64-apple-darwin
             manylinux: ""
