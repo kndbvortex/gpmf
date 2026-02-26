@@ -22,21 +22,15 @@ classifiers = [
 ]
 keywords = ["data mining", "pattern mining", "gradual patterns", "knowledge discovery", "frequent itemsets"]
 
-# Core dependencies — required for all algorithms.
 dependencies = [
     "numpy>=1.20.0",
     "pandas>=1.3.0",
 ]
 
 [project.optional-dependencies]
-# Algorithms that rely on fuzzy / swarm logic (ACO-GRAANK, TGrad)
 fuzzy = [
     "scikit-fuzzy>=0.4.0",
     "ypstruct>=0.0.2",
-]
-# Build the optional Rust extension for ParaMiner acceleration
-rust = [
-    "maturin>=1.0",
 ]
 dev = [
     "pytest>=7.0",
@@ -52,25 +46,25 @@ all = [
 [project.scripts]
 gradual-mine = "gpmf.cli:main"
 
+# ── Build backend ──────────────────────────────────────────────────────────
+# maturin compiles the Rust extension (paraminer_gradual_rust) and packages
+# it alongside the Python code in a single platform wheel.
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[tool.maturin]
+# Path to the Rust crate that provides paraminer_gradual_rust
+manifest-path = "src/gpmf/algorithms/closed/paraminer/Cargo.toml"
+# Python source root (contains the gpmf/ package)
+python-source = "src"
+# Extension module placed inside the gpmf package hierarchy so the relative
+# import `from .paraminer_gradual_rust import …` works in __init__.py
+module-name = "gpmf.algorithms.closed.paraminer.paraminer_gradual_rust"
+# Features to enable when building the Rust extension
+features = ["pyo3/extension-module"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
-exclude = ["tests*", "*.tests*"]
-
-[tool.setuptools.package-data]
-gpmf = [
-    "py.typed",
-    # Rust source included so users can optionally compile with: maturin develop --release
-    "algorithms/closed/paraminer/Cargo.toml",
-    "algorithms/closed/paraminer/src/*.rs",
-]
-
+# ── Dev tools ──────────────────────────────────────────────────────────────
 [tool.black]
 line-length = 120
 target-version = ["py39", "py310", "py311", "py312"]

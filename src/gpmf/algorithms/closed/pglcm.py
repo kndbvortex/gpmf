@@ -1,10 +1,3 @@
-"""PGLCM - Parallel mining of closed frequent gradual itemsets.
-
-Reference:
-    Do, T.D.T., Termier, A., Laurent, A., Negrevergne, B., Jeudy, B., &
-    Gacias, B. (2015). PGLCM: Efficient Parallel Mining of Closed Frequent
-    Gradual Itemsets. Knowledge and Information Systems, 43(3), 681-737.
-"""
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,34 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 class PGLCM(BaseAlgorithm):
-    """PGLCM algorithm for parallel mining of closed frequent gradual itemsets.
+    # Parallel GLCM: each starting attribute's subtree is independent, no synchronisation needed
 
-    Parallelises GLCM by distributing each starting attribute across worker
-    threads. Each starting item's subtree is fully independent, so no
-    synchronisation is needed between workers. Results are merged and
-    deduplicated after all workers complete.
-
-    Thread-based parallelism is used (not processes) to avoid serialisation
-    overhead for the binary-matrix data. NumPy releases the GIL for most
-    array operations, providing real concurrency for the compute-heavy parts.
-
-    Args:
-        min_support: Minimum support threshold (0-1 for relative, >1 for absolute)
-        n_jobs: Worker threads. -1 uses all available CPUs (default 1).
-
-    Example:
-        >>> pglcm = PGLCM(min_support=0.5, n_jobs=4)
-        >>> patterns = pglcm.mine('data.csv')
-    """
-
-    def __init__(
-        self,
-        min_support: float = 0.5,
-        n_jobs: int = 1,
-        max_pattern_size: int = 0,
-        use_rc_pruning: bool = False,
-        **kwargs,
-    ):
+    def __init__(self, min_support: float = 0.5, n_jobs: int = 1,
+                 max_pattern_size: int = 0, use_rc_pruning: bool = False, **kwargs):
         super().__init__(min_support=min_support, **kwargs)
         self.n_jobs = n_jobs
         self.max_pattern_size = max_pattern_size
@@ -85,8 +54,5 @@ class PGLCM(BaseAlgorithm):
                     raw_results.extend(future.result())
 
         patterns = _results_to_patterns(raw_results, enc_to_attr)
-        logger.info(
-            f"PGLCM found {len(patterns)} closed frequent gradual patterns "
-            f"using {n_workers} thread(s)"
-        )
+        logger.info(f"PGLCM found {len(patterns)} closed frequent gradual patterns using {n_workers} thread(s)")
         return patterns

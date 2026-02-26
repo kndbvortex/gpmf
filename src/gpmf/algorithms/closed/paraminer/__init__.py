@@ -24,7 +24,7 @@ RustGradualPatternResult = None
 RustVariation = None
 
 try:
-    from paraminer_gradual_rust import (
+    from .paraminer_gradual_rust import (
         BoolMatrix as RustBoolMatrix,
         compute_gradual_support as rust_compute_gradual_support,
         compute_path_lengths as rust_compute_path_lengths,

@@ -1,12 +1,7 @@
-"""T-GRAANK (TGrad) - Temporal gradual pattern mining with fuzzy membership.
-
-Reference: Mining Fuzzy-Temporal Gradual Patterns
-"""
 import numpy as np
 import logging
 from typing import List, Optional, Tuple
 from concurrent.futures import ProcessPoolExecutor
-import json
 
 from ..base_algorithm import BaseAlgorithm
 from ...core.data_structures import GradualItem, GradualPattern, TimeLag, TemporalGradualPattern
@@ -16,21 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class TGrad(BaseAlgorithm):
-    """TGrad algorithm for mining temporal gradual patterns.
-
-    Uses fuzzy membership functions and data transformation to discover
-    fuzzy temporal gradual patterns.
-
-    Args:
-        min_support: Minimum support threshold
-        target_col: Target column index for temporal reference
-        min_rep: Minimum representativity (default: 0.5)
-        n_jobs: Number of parallel jobs
-
-    Example:
-        >>> tgrad = TGrad(min_support=0.5, target_col=0, min_rep=0.5)
-        >>> patterns = tgrad.mine(data)
-    """
+    # Temporal gradual pattern mining via fuzzy membership + data transformation
 
     def __init__(self, min_support: float = 0.5, target_col: int = 0,
                  min_rep: float = 0.5, n_jobs: int = 1, **kwargs):
@@ -45,7 +26,6 @@ class TGrad(BaseAlgorithm):
         })
 
     def _get_time_diffs(self, step: int) -> Tuple[bool, List]:
-        """Calculate time differences for given step."""
         if len(self.dataset.time_cols) == 0:
             return False, []
 
@@ -66,7 +46,6 @@ class TGrad(BaseAlgorithm):
         return True, time_diffs
 
     def _transform_data(self, step: int) -> Optional[np.ndarray]:
-        """Transform data according to step value."""
         n = self.dataset.row_count
         transformed = []
 
@@ -81,7 +60,6 @@ class TGrad(BaseAlgorithm):
         return np.array(transformed).T
 
     def _compute_time_lag(self, time_diffs: List, support: float) -> TimeLag:
-        """Compute fuzzy time lag from time differences."""
         if not time_diffs:
             return TimeLag(0, 0)
 
@@ -110,7 +88,6 @@ class TGrad(BaseAlgorithm):
             return TimeLag(median_time, support, "~")
 
     def _transform_and_mine(self, step: int) -> List[TemporalGradualPattern]:
-        """Transform data and mine patterns for given step."""
         ok, time_diffs = self._get_time_diffs(step)
         if not ok:
             return []
@@ -156,7 +133,6 @@ class TGrad(BaseAlgorithm):
         return temporal_patterns
 
     def _mine(self) -> List[TemporalGradualPattern]:
-        """Mine temporal gradual patterns."""
         if len(self.dataset.time_cols) == 0:
             logger.error("No datetime columns found in dataset")
             return []

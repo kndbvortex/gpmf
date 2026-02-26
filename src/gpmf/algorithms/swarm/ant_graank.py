@@ -1,8 +1,6 @@
-"""Ant Colony Optimization for gradual pattern mining."""
 import numpy as np
 import logging
 from typing import List
-import gc
 
 from ..base_algorithm import BaseAlgorithm
 from ...core.data_structures import GradualItem, GradualPattern
@@ -11,16 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class AntGRAANK(BaseAlgorithm):
-    """ACO-based gradual pattern mining.
-
-    Uses ant colony optimization with pheromone trails to discover
-    frequent gradual patterns.
-
-    Args:
-        min_support: Minimum support threshold
-        max_iter: Maximum number of iterations (default: 10)
-        evaporation_factor: Pheromone evaporation rate (default: 0.5)
-    """
+    # ACO-based gradual pattern mining with pheromone trails
 
     def __init__(self, min_support: float = 0.5, max_iter: int = 10,
                  evaporation_factor: float = 0.5, **kwargs):
@@ -58,7 +47,7 @@ class AntGRAANK(BaseAlgorithm):
 
                 bin_1 = v_bins[i][1]
                 bin_2 = v_bins[j][1]
-                d[i][j] = np.sum(np.multiply(bin_1, bin_2))
+                d[i][j] = np.sum(bin_1 * bin_2)
 
         return d, attr_keys
 
@@ -67,7 +56,7 @@ class AntGRAANK(BaseAlgorithm):
         m = p_matrix.shape[0]
 
         for i in range(m):
-            combine_feature = np.multiply(v_matrix[i], p_matrix[i])
+            combine_feature = v_matrix[i] * p_matrix[i]
             total = np.sum(combine_feature)
 
             with np.errstate(divide='ignore', invalid='ignore'):
@@ -195,8 +184,6 @@ class AntGRAANK(BaseAlgorithm):
                         p_matrix = self._update_pheromones(candidate, p_matrix, attr_keys)
             else:
                 loser_gps.append(candidate)
-
-            gc.collect()
 
         logger.info(f"ACO-GRAANK found {len(winner_gps)} patterns after {self.max_iter} iterations")
         return winner_gps
