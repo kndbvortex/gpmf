@@ -62,7 +62,7 @@ python-source = "src"
 # import `from .paraminer_gradual_rust import …` works in __init__.py
 module-name = "gpmf.algorithms.closed.paraminer.paraminer_gradual_rust"
 # Features to enable when building the Rust extension
-features = ["pyo3/extension-module"]
+features = ["pyo3/extension-module", "pyo3/abi3-py39"]
 
 # ── Dev tools ──────────────────────────────────────────────────────────────
 [tool.black]
