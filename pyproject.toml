@@ -50,19 +50,21 @@ all = [
 ]
 
 [project.scripts]
-gradual-mine = "gradual_mining.cli:main"
+gradual-mine = "gpmf.cli:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["gradual_mining*"]   # discovers all sub-packages automatically
+where = ["src"]
 exclude = ["tests*", "*.tests*"]
 
 [tool.setuptools.package-data]
-gradual_mining = [
+gpmf = [
     "py.typed",
     # Rust source included so users can optionally compile with: maturin develop --release
     "algorithms/closed/paraminer/Cargo.toml",

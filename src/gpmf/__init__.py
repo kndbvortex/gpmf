@@ -4,7 +4,7 @@ A unified, professional package for gradual pattern mining with multiple algorit
 and a clean, SPMF-like interface.
 
 Example:
-    >>> from gradual_mining import GradualPatternMiner
+    >>> from gpmf import GradualPatternMiner
     >>> miner = GradualPatternMiner('graank', 'data.csv', min_support=0.5)
     >>> patterns = miner.mine()
     >>> for p in patterns:
