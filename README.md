@@ -1,103 +1,96 @@
-# GPMF (Gradual Pattern Mining Framework)
+# GPMF — Gradual Pattern Mining Framework
 
-A unified Python package for gradual pattern mining with multiple algorithms and a clean, SPMF-like interface.
-
-## Features
-
-- **Unified API** - Simple interface inspired by SPMF
-- **Multiple algorithms** - GRAANK, GRITE, ParaMiner, ACO-GRAANK, TGrad, MSGP, GLCM, PGLCM
-
+A Python library for gradual pattern mining with a unified scikit-learn-style API.
 
 ## Installation
 
 ```bash
-uv sync
+pip install gradual-mining
 ```
 
-## Quick Start
+Pre-built wheels are available for Linux, macOS and Windows (x86_64 and arm64). The ParaMiner algorithm includes an optional Rust extension for multi-core acceleration — it is compiled into the wheel automatically and falls back to a pure-Python implementation if unavailable.
+
+## Quick start
 
 ```python
-from gradual_mining.algorithms.closed.paraminer_algorithm import ParaMiner
+from gpmf.algorithms.graank import GRAANK
 
-miner = ParaMiner(min_support=0.5, num_threads=4)
-miner.fit('data.csv')
+model = GRAANK(min_support=0.5)
+patterns = model.mine("data.csv")
 
-patterns = miner.get_patterns()
-
-for pattern in patterns:
-    print(f"{pattern.to_string()} : {pattern.support}")
+for p in patterns:
+    print(p.to_string(), ":", p.support)
 ```
 
-ParaMiner can also be used directly, with optional Rust acceleration and multi-threading:
+All algorithms share the same interface:
 
 ```python
-from gradual_mining.algorithms.closed.paraminer_algorithm import ParaMiner
-
-miner = ParaMiner(min_support=0.5, use_rust=True, num_threads=4)
-miner.fit('data.csv')
-patterns = miner.get_patterns()
+model.fit(data)              # data can be a CSV path, DataFrame, or GradualDataset
+patterns = model.get_patterns()
+result   = model.get_result()  # includes execution time, metadata
 ```
 
-Or via its dedicated CLI:
+### ParaMiner with Rust acceleration
 
-```bash
-python -m gradual_mining.algorithms.closed.paraminer data.csv 0.5
+```python
+from gpmf.algorithms.closed.paraminer_algorithm import ParaMiner
+
+model = ParaMiner(min_support=0.5, use_rust=True, num_threads=4)
+patterns = model.mine("data.csv")
 ```
 
+## Available algorithms
 
-## Available Algorithms
+| Algorithm | Key | Authors | Reference |
+|-----------|-----|---------|-----------|
+| **GRAANK** | `graank` | Laurent, Lesot & Rifqi (2010) | [paper](https://www.lirmm.fr/~laurent/POLYTECH/IG4/DM/RessourcesProjet/LaurentLesotRifqi.pdf) |
+| **GRITE** | `grite` | Di-Jorio, Laurent & Teisseire (2009) | [paper](https://hal.inrae.fr/hal-02592797v1) |
+| **SGrite** | `sgrite` / `sgopt` / `sg1` / `sgb1` / `sgb2` | Tayou Djamegni, Tabueu Fotso & Kenmogne (2021) | [paper](https://doi.org/10.1016/j.mlwa.2021.100068) |
+| **ParaMiner** | `paraminer` | Négrevergne, Termier, Rousset & Méhaut (2014) | [paper](https://doi.org/10.1007/s10618-013-0313-2) |
+| **ACO-GRAANK** | `ant-graank` | Owuor, Laurent & Orero (2019) | [paper](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883) |
+| **TGrad** | `tgrad` | Owuor, Laurent & Orero (2019) | [paper](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883) |
+| **MSGP** | `msgp` | Lonlac, Doniec, Lujak & Lecoeuche (2020) | [paper](https://doi.org/10.1007/978-3-030-59065-9_16) |
+| **GLCM** | `glcm` | Do, Termier, Laurent et al. (2015) | [paper](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1) |
+| **PGLCM** | `pglcm` | Do, Termier, Laurent et al. (2015) | [paper](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1) |
 
-| Name | CLI key | Authors | Paper                                                                                                                                                        |
-|------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **GRAANK** | `graank` | Laurent, Lesot & Rifqi (2010) | [GRAANK: Exploiting Rank Correlations for Extracting Gradual Itemsets](https://www.lirmm.fr/~laurent/POLYTECH/IG4/DM/RessourcesProjet/LaurentLesotRifqi.pdf) |
-| **GRITE** | `grite` | Di-Jorio, Laurent & Teisseire (2009) | [Mining Frequent Gradual Itemsets from Large Databases](https://hal.inrae.fr/hal-02592797v1)                                                                 |
-| **SGrite** | `sgrite`, `sgopt`, `sg1`, `sgb1`, `sgb2` | Tayou Djamegni, Tabueu Fotso & Kenmogne (2021) | [A novel algorithm for extracting frequent gradual patterns](https://doi.org/10.1016/j.mlwa.2021.100068)                                                     |
-| **ParaMiner** | `paraminer` | Négrevergne, Termier, Rousset & Méhaut (2014) | [Para Miner: a generic pattern mining algorithm for multi-core architectures](https://doi.org/10.1007/s10618-013-0313-2)                                     |
-| **ACO-GRAANK** | `ant-graank`, `aco-graank` | Owuor, Laurent & Orero (2019) | [Mining Fuzzy-Temporal Gradual Patterns](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883)                                                                     |
-| **TGrad** | `tgrad`, `t-graank`, `temporal` | Owuor, Laurent & Orero (2019) | [Mining Fuzzy-Temporal Gradual Patterns](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883)                                                                     |
-| **MSGP** | `msgp`, `seasonal` | Lonlac, Doniec, Lujak & Lecoeuche (2020) | [Mining Frequent Seasonal Gradual Patterns](https://doi.org/10.1007/978-3-030-59065-9_16)                                                                    |
-| **GLCM** | `glcm` | Do, Termier, Laurent, Negrevergne, Jeudy & Gacias (2015) | [PGLCM: Efficient Parallel Mining of Closed Frequent Gradual Itemsets](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1)                                      |
-| **PGLCM** | `pglcm` | Do, Termier, Laurent, Negrevergne, Jeudy & Gacias (2015) | [PGLCM: Efficient Parallel Mining of Closed Frequent Gradual Itemsets](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1)                                      |
+### Pruning criterion
 
-## Condition
+| Criterion | Applies to | Authors |
+|-----------|-----------|---------|
+| Row–Column pruning (`--use-rc-pruning`) | GRITE, SGrite, GLCM | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025) — [paper](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
 
-The following works propose pruning criteria that can be integrated into the algorithms above to reduce the search space and execution time without altering the output.
-
-| Criterion | Applies to | Authors | Paper |
-|-----------|-----------|---------|-------|
-| **Row–Column pruning** — keep transaction *t* iff `ML_t + MC_t ≥ minsup − 1` | GRITE, ParaMiner | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025) | [Mining Faster, Not Harder: A New Criterion for Gradual Pattern Mining](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
-
-## Command-Line Interface
-
-### Generic CLI (all algorithms)
+## CLI
 
 ```bash
 # List available algorithms
 gradual-mine --list
 
 # Mine patterns
-gradual-mine graank data.csv --min-support 0.5 --output results.json
+gradual-mine graank data.csv --min-support 0.5
+
+# Save results
+gradual-mine graank data.csv --min-support 0.5 --output results.json --csv results.csv
 
 # Parallel execution
 gradual-mine paraminer data.csv --min-support 0.5 --n-jobs -1
-
-# Disable Row–Column pruning (Kamga Nguifo et al., 2025) for comparison
-gradual-mine sgrite data.csv --min-support 0.5 --use-rc-pruning false
 ```
 
 ## Development
 
 ```bash
+git clone https://github.com/your-org/gpmf
+cd gpmf
 uv sync --dev
 uv run pytest
-uv run black gradual_mining/
-uv run mypy gradual_mining/
+```
+
+To build with the Rust extension locally:
+
+```bash
+pip install maturin
+maturin develop --release
 ```
 
 ## License
 
-MIT License
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+MIT
