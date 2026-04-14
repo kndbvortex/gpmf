@@ -221,4 +221,4 @@ __marimo__/
 gui/
 tauri-app/
 dev.sh
-server/
+server/site/

@@ -1,0 +1,88 @@
+site_name: GPMF
+site_description: Gradual Pattern Mining Framework — unified Python library for gradual pattern mining
+site_url: https://gpmf.readthedocs.io
+repo_url: https://github.com/kndbvortex/gpmf
+repo_name: kndbvortex/gpmf
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting started: getting_started.md
+  - Algorithms:
+    - Overview: algorithms/README.md
+    - Core:
+      - GRAANK: algorithms/graank.md
+      - GRITE: algorithms/grite.md
+      - SGrite: algorithms/sgrite.md
+    - Closed:
+      - ParaMiner: algorithms/paraminer.md
+      - GLCM: algorithms/glcm.md
+      - PGLCM: algorithms/pglcm.md
+    - Swarm:
+      - ACO-GRAANK: algorithms/ant_graank.md
+    - Temporal:
+      - TGrad: algorithms/tgrad.md
+    - Seasonal:
+      - MSGP: algorithms/msgp.md
+    - Contrast:
+      - EmergingGP: algorithms/emerging_gp.md
+  - API reference: api/index.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            members_order: source
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kndbvortex/gpmf

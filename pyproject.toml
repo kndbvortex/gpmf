@@ -39,8 +39,14 @@ dev = [
     "mypy>=0.950",
     "ruff>=0.1.0",
 ]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+    "mkdocs-autorefs>=1.0",
+]
 all = [
-    "gradual-mining[fuzzy,dev]",
+    "gradual-mining[fuzzy,dev,docs]",
 ]
 
 [project.scripts]

@@ -28,6 +28,7 @@ from .algorithms.closed.paraminer import RUST_AVAILABLE
 from .algorithms.temporal.tgrad import TGrad
 from .algorithms.seasonal.msgp import MSGP
 from .algorithms.closed.pglcm import PGLCM
+from .algorithms.emerging_gp import EmergingGP
 from .algorithms.closed.glcm import GLCM
 
 from .factory import AlgorithmRegistry
@@ -61,6 +62,7 @@ __all__ = [
     'MSGP',
     'PGLCM',
     'GLCM',
+    'EmergingGP',
     'AlgorithmRegistry',
     'config',
     'GradualMiningError',
