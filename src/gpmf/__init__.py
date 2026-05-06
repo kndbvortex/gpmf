@@ -35,6 +35,8 @@ from .factory import AlgorithmRegistry
 
 from .config import config
 
+from . import benchmarking
+
 from .exceptions import (
     GradualMiningError,
     InvalidDataError,
@@ -65,6 +67,7 @@ __all__ = [
     'EmergingGP',
     'AlgorithmRegistry',
     'config',
+    'benchmarking',
     'GradualMiningError',
     'InvalidDataError',
     'InvalidAlgorithmError',

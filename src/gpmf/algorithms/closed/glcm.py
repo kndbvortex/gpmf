@@ -33,8 +33,11 @@ def _prune_matrix(bm: np.ndarray, min_chain: int) -> np.ndarray:
         keep = (row_s + col_s) >= threshold
         if keep.all():
             break
+        prev_nnz = result.sum()
         result[~keep, :] = False
         result[:, ~keep] = False
+        if result.sum() == prev_nnz:
+            break
     return result
 
 

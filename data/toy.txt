@@ -1,0 +1,6 @@
+HeartRate BloodPressure BloodOxygen MedDose RecoveryScore
+72 120 98 10 7
+85 135 95 15 8
+68 110 99 5 6
+90 140 92 20 9
+78 125 96 12 7
