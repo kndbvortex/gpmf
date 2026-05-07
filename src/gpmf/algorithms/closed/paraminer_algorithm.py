@@ -56,12 +56,14 @@ class ParaMiner(BaseAlgorithm):
         min_support: float = 0.5,
         use_rust: bool = True,
         num_threads: Optional[int] = None,
+        use_rc_pruning: bool = False,
         verbose: bool = False,
         **kwargs
     ):
         super().__init__(min_support=min_support, **kwargs)
         self.use_rust = use_rust
         self.num_threads = num_threads
+        self.use_rc_pruning = use_rc_pruning
         self.verbose = verbose
         self._miner = None
         self._temp_file = None
@@ -91,6 +93,7 @@ class ParaMiner(BaseAlgorithm):
                 min_support=self.min_support,
                 num_threads=self.num_threads,
                 use_rust=self.use_rust,
+                use_rc_pruning=self.use_rc_pruning,
                 verbose=self.verbose
             )
 

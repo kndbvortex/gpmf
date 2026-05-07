@@ -20,8 +20,8 @@ from gpmf.benchmarking import run_benchmark
 MIN_SUPPORTS = [0.5, 0.6, 0.7]
 N_RUNS = 3
 
-PRUNABLE = ["grite", "glcm", "pglcm", "sgrite"]
-UNPRUNABLE = ["paraminer"]
+PRUNABLE = ["grite", "glcm", "pglcm", "sgrite", "paraminer"]
+UNPRUNABLE = []
 
 
 def main(output: str | None = None) -> None:

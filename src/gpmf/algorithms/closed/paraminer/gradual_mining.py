@@ -16,12 +16,14 @@ class GradualMiner:
         min_support: float,
         num_threads: Optional[int] = None,
         use_rust: bool = True,
+        use_rc_pruning: bool = False,
         verbose: bool = False,
     ):
         self.min_support = min_support
         self.num_threads = num_threads
         self.verbose = verbose
         self.use_rust = use_rust and RUST_AVAILABLE
+        self.use_rc_pruning = use_rc_pruning
 
         if use_rust and not RUST_AVAILABLE:
             print("Warning: Rust acceleration requested but not available. Using Python implementation.")
@@ -106,6 +108,26 @@ class GradualMiner:
 
         return matrix, num_tids, tid_to_idx
 
+    def _rc_prune_vtids(self, vtids: np.ndarray) -> np.ndarray:
+        active = vtids.copy()
+        min_degree = self.threshold - 1
+
+        while True:
+            indices = np.where(active)[0]
+            if len(indices) == 0:
+                break
+            pairs = self.vtid_to_pair[indices]
+            counts = np.bincount(pairs.ravel(), minlength=self.num_transactions)
+            weak = np.where(counts < min_degree)[0]
+            if len(weak) == 0:
+                break
+            weak_mask = np.isin(pairs[:, 0], weak) | np.isin(pairs[:, 1], weak)
+            if not weak_mask.any():
+                break
+            active[indices[weak_mask]] = False
+
+        return active
+
     def _membership_oracle(
         self,
         base_set: List[int],
@@ -120,6 +142,11 @@ class GradualMiner:
         supporting_vtids = base_vtids & ext_vtids
         if not supporting_vtids.any():
             return 0
+
+        if self.use_rc_pruning:
+            supporting_vtids = self._rc_prune_vtids(supporting_vtids)
+            if not supporting_vtids.any():
+                return 0
 
         matrix, _, _ = self._build_matrix_from_vtids(supporting_vtids)
         if matrix is None:
