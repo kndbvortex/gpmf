@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import logging
 from typing import List, Optional, Tuple
 from concurrent.futures import ProcessPoolExecutor
@@ -25,25 +26,22 @@ class TGrad(BaseAlgorithm):
             'n_jobs': n_jobs
         })
 
+    def _timestamps(self) -> np.ndarray:
+        # Time column as seconds; it may hold numbers or date strings (the usual case).
+        col = self.dataset.data[:, self.dataset.time_cols[0]]
+        try:
+            return np.asarray(col, dtype=float)
+        except (ValueError, TypeError):
+            return np.array([pd.Timestamp(str(v)).timestamp() for v in col])
+
     def _get_time_diffs(self, step: int) -> Tuple[bool, List]:
         if len(self.dataset.time_cols) == 0:
             return False, []
-
-        time_col = self.dataset.time_cols[0]
-        time_data = self.dataset.data[:, time_col]
-
-        time_diffs = []
-        n = self.dataset.row_count
-
-        for i in range(n - step):
-            try:
-                t1 = float(time_data[i])
-                t2 = float(time_data[i + step])
-                time_diffs.append(abs(t2 - t1))
-            except (ValueError, TypeError):
-                return False, [i, i + step]
-
-        return True, time_diffs
+        try:
+            ts = self._timestamps()
+        except (ValueError, TypeError):
+            return False, []
+        return True, list(np.abs(ts[step:] - ts[:-step]))
 
     def _transform_data(self, step: int) -> Optional[np.ndarray]:
         n = self.dataset.row_count
