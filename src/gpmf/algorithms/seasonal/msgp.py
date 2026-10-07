@@ -2,6 +2,8 @@
 
 Reference: Mining Frequent Seasonal Gradual Patterns
 """
+import re
+
 import numpy as np
 import logging
 import os
@@ -51,146 +53,105 @@ class MSGP(BaseAlgorithm):
             'max_std': max_std
         })
 
+    def _n_cycles(self) -> int:
+        return self.dataset.row_count // self.cycle_size
+
+    def _item_code(self, col_idx: int, symbol: str) -> int:
+        return col_idx * 2 + (2 if symbol == '+' else 1)
+
+    @staticmethod
+    def _decode(code: int) -> str:
+        return f"{code // 2 - 1}+" if code % 2 == 0 else f"{code // 2}-"
+
     def _numerical_to_sequential(self, output_file: str):
-        """Convert numerical database to sequential database."""
+        """Sequence database of Lonlac et al.: the series is cut into consecutive cycles of
+        `cycle_size` observations (an incomplete last cycle is dropped); each cycle is one
+        sequence, whose k-th itemset holds the gradual items respected between observations k and
+        k+1 of the cycle. Transitions across two cycles are not used."""
         data = self.dataset.data
-        n_rows, n_cols = data.shape
-
-        sequences = []
-        for cycle_id in range(self.cycle_size):
-            sequence = []
-            start_idx = cycle_id
-            while start_idx < n_rows:
-                itemset = []
-                for col_idx in self.dataset.attr_cols:
-                    if start_idx > 0:
-                        if data[start_idx][col_idx] > data[start_idx - 1][col_idx]:
-                            itemset.append(f"{col_idx * 2 + 2}")
-                        elif data[start_idx][col_idx] < data[start_idx - 1][col_idx]:
-                            itemset.append(f"{col_idx * 2 + 1}")
-                if itemset:
-                    sequence.append(itemset)
-                start_idx += self.cycle_size
-
-            if sequence:
-                sequences.append(sequence)
-
+        attrs = list(self.dataset.attr_cols)
+        vals = np.asarray(data[:, attrs], dtype=float)
+        L = self.cycle_size
+        lines = []
+        for c in range(self._n_cycles()):
+            block = vals[c * L:(c + 1) * L]
+            diff = np.diff(block, axis=0)
+            seq = []
+            for row in diff:
+                items = [self._item_code(attrs[j], '+') for j in np.flatnonzero(row > 0)]
+                items += [self._item_code(attrs[j], '-') for j in np.flatnonzero(row < 0)]
+                # SPMF needs a non-empty itemset at every position to keep positions aligned;
+                # a transition without any variation gets a placeholder item that is ignored.
+                seq.append(' '.join(str(i) for i in sorted(items)) if items else '0')
+            lines.append(' -1 '.join(seq) + ' -1 -2')
         with open(output_file, 'w') as f:
-            for seq in sequences:
-                for itemset in seq:
-                    f.write(' '.join(itemset) + ' -1 ')
-                f.write('-2\n')
-
-        logger.debug(f"Created {len(sequences)} sequences")
+            f.write('\n'.join(lines) + '\n')
+        logger.debug(f"Created {len(lines)} sequences of {L - 1} transitions")
 
     def _extract_periodic_patterns(self, input_file: str, output_file: str):
-        """Extract periodic patterns using SPMF."""
+        """Periodic patterns common to several sequences, with SPMF's MPFPS-BFS."""
+        n_seq = self._n_cycles()
         min_ra = self.min_ra if self.min_ra is not None else (1 / self.cycle_size)
-        max_per = self.max_periodicity if self.max_periodicity is not None else self.dataset.row_count
-        max_std = self.max_std if self.max_std is not None else self.dataset.row_count
-        min_sup_count = int(self.min_support * self.cycle_size) if self.min_support < 1 else 2
-
+        max_per = self.max_periodicity if self.max_periodicity is not None else self.cycle_size
+        max_std = self.max_std if self.max_std is not None else self.cycle_size
+        min_seq = self.min_support if self.min_support >= 1 else max(1, int(np.ceil(self.min_support * n_seq)))
         try:
             from spmf import Spmf
-
-            spmf = Spmf(
-                "MPFPS-BFS",
-                input_filename=input_file,
-                output_filename=output_file,
-                arguments=[max_std, min_ra, max_per, min_sup_count]
-            )
+            kw = {}
+            if self.spmf_path:
+                kw['spmf_bin_location_dir'] = os.path.dirname(os.path.abspath(self.spmf_path))
+            spmf = Spmf("MPFPS-BFS", input_filename=input_file, output_filename=output_file,
+                        arguments=[max_std, min_ra, max_per, int(min_seq)], **kw)
             spmf.run()
-            logger.debug("SPMF periodic pattern mining completed")
             return True
-
         except ImportError:
-            logger.error("SPMF library not available. Install with: pip install spmf-py")
+            logger.error("SPMF library not available. Install with: pip install spmf")
             return False
         except Exception as e:
             logger.error(f"SPMF execution failed: {e}")
             return False
 
     def _extract_seasonal_patterns(self, input_file: str, output_file: str):
-        """Extract seasonal gradual patterns from periodic patterns."""
+        """Parse MPFPS output lines "<items> #RA:<ra> #SIDOCC: <sid>[<pos>] ... <sid>[...]".
+        The support is the fraction of cycles (sequence ids) in which the pattern is periodic."""
+        n_seq = self._n_cycles()
         patterns_data = []
-
-        try:
-            with open(input_file, 'r') as f:
-                for line in f:
-                    parts = line.split('#')
-                    if len(parts) < 3:
-                        continue
-
-                    pattern_items = parts[0].strip()
-                    if len(pattern_items) < 6:
-                        continue
-
-                    gradual_items = []
-                    support_part = parts[2]
-
-                    i = 0
-                    while i < len(support_part):
-                        if support_part[i] == '[':
-                            num_str = ''
-                            j = i - 1
-                            while j >= 0 and support_part[j].strip() and support_part[j] not in ['[', ']', ' ']:
-                                num_str = support_part[j] + num_str
-                                j -= 1
-
-                            if num_str.isdigit():
-                                item_num = int(num_str)
-                                if item_num % 2 == 0:
-                                    attr_idx = (item_num // 2) - 1
-                                    gradual_items.append(f"{attr_idx}+")
-                                else:
-                                    attr_idx = (item_num // 2)
-                                    gradual_items.append(f"{attr_idx}-")
-                        i += 1
-
-                    if gradual_items:
-                        patterns_data.append({
-                            'items': gradual_items,
-                            'support': pattern_items
-                        })
-
-        except FileNotFoundError:
-            logger.error(f"Input file not found: {input_file}")
-            return []
-
+        with open(input_file) as f:
+            for line in f:
+                if line.startswith('@') or '#SIDOCC' not in line:
+                    continue
+                head, _, occ = line.partition('#SIDOCC:')
+                codes = [int(t) for t in head.split('#')[0].split()]
+                if 0 in codes:
+                    continue
+                sids = set(re.findall(r'(\d+)\[', occ))
+                patterns_data.append({'items': [self._decode(c) for c in codes],
+                                      'support': len(sids) / n_seq})
         with open(output_file, 'w') as f:
             for p in patterns_data:
-                f.write(' '.join(p['items']) + ' : ' + p['support'] + '\n')
-
+                f.write(' '.join(p['items']) + ' : ' + str(p['support']) + '\n')
         return patterns_data
 
     def _remove_redundancy(self, patterns_data: List[dict]) -> List[GradualPattern]:
-        """Remove redundant patterns and convert to GradualPattern objects."""
-        unique_patterns = {}
-
-        for p_data in patterns_data:
-            items_key = tuple(sorted(p_data['items']))
-            if items_key not in unique_patterns:
-                unique_patterns[items_key] = p_data
-
-        result_patterns = []
-        for items_key, p_data in unique_patterns.items():
+        """One pattern per item set; patterns holding an attribute in both directions and, unless
+        include_size_one, single items are dropped."""
+        min_size = 1 if self.include_size_one else 2
+        unique = {}
+        for p in patterns_data:
+            key = tuple(sorted(p['items']))
+            attrs = [i[:-1] for i in key]
+            if len(key) < min_size or len(set(attrs)) < len(attrs):
+                continue
+            if key not in unique or p['support'] > unique[key]['support']:
+                unique[key] = p
+        out = []
+        for key, p in unique.items():
             gp = GradualPattern()
-
-            for item_str in p_data['items']:
-                attr_idx = int(item_str[:-1])
-                symbol = item_str[-1]
-                gi = GradualItem(attr_idx, symbol)
-                gp.add_gradual_item(gi)
-
-            try:
-                support_val = float(p_data['support']) / self.cycle_size
-            except ValueError:
-                support_val = self.min_support
-
-            gp.set_support(support_val)
-            result_patterns.append(gp)
-
-        return result_patterns
+            for item in key:
+                gp.add_gradual_item(GradualItem(int(item[:-1]), item[-1]))
+            gp.set_support(p['support'])
+            out.append(gp)
+        return out
 
     def _mine(self) -> List[GradualPattern]:
         """Mine seasonal gradual patterns."""
