@@ -45,6 +45,7 @@ class GradualMiner:
             self.item_matrices: List[BoolMatrix] = []
             self.patterns: List[GradualPattern] = []
             self.found_patterns: Set[Tuple[int, ...]] = set()
+            self.n_candidates = 0
 
     def load_data(self, filename: str):
         table = TransactionTable.from_file(filename)
@@ -213,6 +214,10 @@ class GradualMiner:
                 continue
 
             item_vtids = self.item_to_vtids[item_code]
+            # counted here, at the point a candidate extension is tested,
+            # before use_rc_pruning affects anything inside the oracle
+            # below, so this count is identical with and without it
+            self.n_candidates += 1
             support = self._membership_oracle(current_pattern, item_code, current_vtids, item_vtids)
 
             if support >= self.threshold:

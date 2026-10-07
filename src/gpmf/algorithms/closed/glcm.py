@@ -23,27 +23,52 @@ def _set_contrast_to_zero(bm: np.ndarray) -> np.ndarray:
 
 
 def _prune_matrix(bm: np.ndarray, min_chain: int) -> np.ndarray:
+    # Row-column pruning fixed point (Property 1): drop any transaction
+    # whose row+col degree can't support a chain of length min_chain. A
+    # k-core-style incremental peeling variant was tried here (each removal
+    # updating only its own neighbours' degree instead of resumming the
+    # whole matrix every round) and verified correct, but it was slower in
+    # practice at these problem sizes (n in the hundreds): the Python-level
+    # loop over neighbours with scalar numpy indexing has higher constant
+    # overhead per element than a handful of vectorised full-array passes,
+    # so the asymptotically better algorithm loses here. Kept as the plain
+    # fixed point; the one change that reliably paid off is compacting the
+    # surviving submatrix (np.ix_) once convergence is reached, instead of
+    # leaving it zeroed-out at the original shape, so the downstream
+    # support computation actually gets a smaller array to work with.
     if min_chain <= 1:
         return bm
     threshold = min_chain - 1
     result = bm.copy()
+    keep = np.ones(bm.shape[0], dtype=bool)
     while True:
         row_s = result.sum(axis=1)
         col_s = result.sum(axis=0)
-        keep = (row_s + col_s) >= threshold
-        if keep.all():
+        alive = (row_s + col_s) >= threshold
+        if alive.all():
             break
         prev_nnz = result.sum()
-        result[~keep, :] = False
-        result[:, ~keep] = False
+        result[~alive, :] = False
+        result[:, ~alive] = False
+        keep &= alive
         if result.sum() == prev_nnz:
             break
-    return result
+    if keep.all():
+        return result
+    idx = np.where(keep)[0]
+    return result[np.ix_(idx, idx)]
 
 
-def _compute_support(bm: np.ndarray) -> float:
-    # Vectorised topo-sort DP: number of Python iterations = DAG depth
+def _compute_support(bm: np.ndarray, n_total: int = None) -> float:
+    # Vectorised topo-sort DP: number of Python iterations = DAG depth.
+    # n_total normalises the longest-chain count; it differs from
+    # bm.shape[0] when bm was compacted by _prune_matrix, since transactions
+    # dropped there are isolated (chain length 1) rather than absent.
     n = bm.shape[0]
+    if n_total is None:
+        n_total = n
+    if n == 0:
+        return 1.0 / n_total
     dag = _set_contrast_to_zero(bm)
     dp = np.ones(n, dtype=np.int32)
     in_deg = dag.sum(axis=0, dtype=np.int32)
@@ -61,7 +86,7 @@ def _compute_support(bm: np.ndarray) -> float:
             in_deg -= succ.sum(axis=0, dtype=np.int32)
         processed |= ready
 
-    return int(dp.max()) / n
+    return int(dp.max()) / n_total
 
 
 def _compute_closure(bm: np.ndarray, all_bms_stack: np.ndarray) -> Tuple[int, ...]:
@@ -87,6 +112,7 @@ def _glcm_loop(
     results: list,
     max_size: int = 0,
     use_rc_pruning: bool = True,
+    counter: list = None,
 ) -> None:
     n_enc = len(all_bms)
     n = bm.shape[0]
@@ -101,8 +127,16 @@ def _glcm_loop(
         if int(bm1.sum()) < min_edges:
             continue
 
+        # candidate is counted here, at the point its support gets tested,
+        # the same point regardless of use_rc_pruning: the criterion only
+        # changes how bm1_for_supp is computed below, never whether this
+        # candidate is reached, so this count is identical with and
+        # without pruning.
+        if counter is not None:
+            counter[0] += 1
+
         bm1_for_supp = _prune_matrix(bm1, min_chain) if use_rc_pruning else bm1
-        supp = _compute_support(bm1_for_supp)
+        supp = _compute_support(bm1_for_supp, n_total=n)
         if supp < min_supp:
             continue
 
@@ -114,31 +148,32 @@ def _glcm_loop(
         results.append((Q, supp))
         if max_size and len(Q) >= max_size:
             continue
-        _glcm_loop(frozenset(Q), bm1, e, min_supp, all_bms, all_bms_stack, results, max_size, use_rc_pruning)
+        _glcm_loop(frozenset(Q), bm1, e, min_supp, all_bms, all_bms_stack, results, max_size, use_rc_pruning, counter)
 
 
-def _mine_root(args: tuple) -> list:
+def _mine_root(args: tuple) -> tuple:
     e, bm_e, all_bms, all_bms_stack, min_supp, max_size, use_rc_pruning = args
+    counter = [1]  # the root attribute itself counts as one candidate
     supp = _compute_support(bm_e)
     if supp < min_supp:
-        return []
+        return [], counter[0]
 
     Q = _compute_closure(bm_e, all_bms_stack)
     if any(q < e for q in Q):
-        return []
+        return [], counter[0]
 
     results = [(Q, supp)]
     if not (max_size and len(Q) >= max_size):
-        _glcm_loop(frozenset(Q), bm_e, e, min_supp, all_bms, all_bms_stack, results, max_size, use_rc_pruning)
-    return results
+        _glcm_loop(frozenset(Q), bm_e, e, min_supp, all_bms, all_bms_stack, results, max_size, use_rc_pruning, counter)
+    return results, counter[0]
 
 
-def _results_to_patterns(raw_results: list, enc_to_attr: List[Tuple[int, str]]) -> List[GradualPattern]:
+def _results_to_patterns(raw_results: list, enc_to_attr: List[Tuple[int, str]], min_size: int = 2) -> List[GradualPattern]:
     seen: set = set()
     patterns: List[GradualPattern] = []
 
     for Q, supp in raw_results:
-        if len(Q) < 2:
+        if len(Q) < min_size:
             continue
         key = Q
         if key in seen:
@@ -203,11 +238,16 @@ class GLCM(BaseAlgorithm):
 
         n_enc = len(all_bms)
         raw_results: list = []
+        n_candidates = 0
 
         for e in range(0, n_enc, 2):
             args = (e, all_bms[e], all_bms, all_bms_stack, min_supp, self.max_pattern_size, self.use_rc_pruning)
-            raw_results.extend(_mine_root(args))
+            results, n = _mine_root(args)
+            raw_results.extend(results)
+            n_candidates += n
 
-        patterns = _results_to_patterns(raw_results, enc_to_attr)
+        self.n_candidates = n_candidates
+        min_size = 1 if self.include_size_one else 2
+        patterns = _results_to_patterns(raw_results, enc_to_attr, min_size)
         logger.info(f"GLCM found {len(patterns)} closed frequent gradual patterns")
         return patterns

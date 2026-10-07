@@ -122,5 +122,17 @@ class GRAANK(BaseAlgorithm):
                     gradual_patterns.append(gp)
                     i += 1
 
+        if self.include_size_one:
+            n = self.dataset.attr_size
+            for bin_obj in self.dataset.valid_bins:
+                col = int(bin_obj[0][0])
+                symbol = bin_obj[0][1].decode() if hasattr(bin_obj[0][1], 'decode') else bin_obj[0][1]
+                sup = float(np.asarray(bin_obj[1]).sum()) / float(n * (n - 1.0) / 2.0)
+                if sup >= self.dataset.thd_supp:
+                    gp = GradualPattern()
+                    gp.add_gradual_item(GradualItem(col, symbol))
+                    gp.set_support(sup)
+                    gradual_patterns.append(gp)
+
         logger.info(f"GRAANK found {len(gradual_patterns)} patterns (invalid: {invalid_count})")
         return gradual_patterns

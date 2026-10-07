@@ -99,6 +99,7 @@ class ParaMiner(BaseAlgorithm):
 
             self._miner.load_data(self._temp_file)
             paraminer_patterns = self._miner.mine()
+            self.n_candidates = getattr(self._miner, 'n_candidates', None)
 
             patterns = []
             for pp in paraminer_patterns:
@@ -110,6 +111,8 @@ class ParaMiner(BaseAlgorithm):
                     pattern.add_gradual_item(gi)
                 patterns.append(pattern)
 
+            if not self.include_size_one:
+                patterns = [p for p in patterns if len(p.gradual_items) >= 2]
             return patterns
 
         finally:

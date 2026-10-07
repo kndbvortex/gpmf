@@ -109,7 +109,7 @@ class TGrad(BaseAlgorithm):
         temp_dataset.no_bins = False
         temp_dataset.attr_size = temp_dataset.row_count
 
-        graank = GRAANK(min_support=self.min_support)
+        graank = GRAANK(min_support=self.min_support, include_size_one=self.include_size_one)
         graank.dataset = temp_dataset
 
         try:

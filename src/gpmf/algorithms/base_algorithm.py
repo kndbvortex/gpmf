@@ -15,15 +15,16 @@ logger = logging.getLogger(__name__)
 class BaseAlgorithm(ABC):
     # Abstract base: subclasses implement _mine()
 
-    def __init__(self, min_support: float = 0.5, **kwargs):
+    def __init__(self, min_support: float = 0.5, include_size_one: bool = False, **kwargs):
         if min_support <= 0:
             raise InvalidParameterError("min_support must be positive")
         self.min_support = min_support
+        self.include_size_one = include_size_one
         self.dataset: Optional[GradualDataset] = None
         self.patterns: List[GradualPattern] = []
         self.execution_time: Optional[float] = None
         self.is_fitted = False
-        self._params = kwargs
+        self._params = {'include_size_one': include_size_one, **kwargs}
         logger.debug(f"Initialized {self.__class__.__name__} with min_support={min_support}")
 
     @abstractmethod
@@ -59,6 +60,7 @@ class BaseAlgorithm(ABC):
             'num_rows': self.dataset.row_count,
             'num_cols': self.dataset.col_count,
             'num_attr_cols': len(self.dataset.attr_cols),
+            'n_candidates': getattr(self, 'n_candidates', None),
             **self._params
         }
         return MiningResult(

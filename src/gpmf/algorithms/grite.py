@@ -273,7 +273,8 @@ class GRITE(BaseAlgorithm):
         }
 
         all_patterns = []
-        for size in range(2, k):
+        min_size = 1 if self.include_size_one else 2
+        for size in range(min_size, k):
             if size not in gradual_items:
                 continue
             for grite_pattern in gradual_items[size]:

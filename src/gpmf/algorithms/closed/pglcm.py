@@ -44,15 +44,21 @@ class PGLCM(BaseAlgorithm):
         n_workers = (os.cpu_count() or 1) if self.n_jobs == -1 else max(1, self.n_jobs)
 
         raw_results: list = []
+        n_candidates = 0
         if n_workers == 1:
             for args in tasks:
-                raw_results.extend(_mine_root(args))
+                results, n = _mine_root(args)
+                raw_results.extend(results)
+                n_candidates += n
         else:
             with ThreadPoolExecutor(max_workers=n_workers) as executor:
                 futures = [executor.submit(_mine_root, args) for args in tasks]
                 for future in as_completed(futures):
-                    raw_results.extend(future.result())
+                    results, n = future.result()
+                    raw_results.extend(results)
+                    n_candidates += n
 
+        self.n_candidates = n_candidates
         patterns = _results_to_patterns(raw_results, enc_to_attr)
         logger.info(f"PGLCM found {len(patterns)} closed frequent gradual patterns using {n_workers} thread(s)")
         return patterns

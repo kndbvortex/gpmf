@@ -107,7 +107,7 @@ class PGLCM(BaseAlgorithm):
                             except ValueError:
                                 continue
 
-                    if len(gp.gradual_items) >= 2:
+                    if len(gp.gradual_items) >= (1 if self.include_size_one else 2):
                         try:
                             support = float(support_str)
                             gp.set_support(support)

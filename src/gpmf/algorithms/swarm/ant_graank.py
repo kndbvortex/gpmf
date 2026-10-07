@@ -54,31 +54,74 @@ class AntGRAANK(BaseAlgorithm):
     def _generate_candidate(self, p_matrix, v_matrix, attr_keys):
         pattern = GradualPattern()
         m = p_matrix.shape[0]
+        n = self.dataset.attr_size
+        valid_bins = self.dataset.valid_bins
 
-        for i in range(m):
-            combine_feature = v_matrix[i] * p_matrix[i]
-            total = np.sum(combine_feature)
+        def _compute_sup(items):
+            bin_data = None
+            for item in items:
+                for bin_obj in valid_bins:
+                    col = int(bin_obj[0][0])
+                    symbol = bin_obj[0][1].decode() if hasattr(bin_obj[0][1], 'decode') else bin_obj[0][1]
+                    if col == item.attribute_col and symbol == item.symbol:
+                        bin_data = bin_obj[1].copy() if bin_data is None else bin_data * bin_obj[1]
+                        break
+            if bin_data is None:
+                return 0.0
+            return float(np.sum(bin_data)) / float(n * (n - 1.0) / 2.0)
+
+        # Pick a starting item weighted by total pheromone × distance strength
+        row_strengths = np.array([np.sum(v_matrix[i] * p_matrix[i]) for i in range(m)])
+        total = row_strengths.sum()
+        if total == 0:
+            p_matrix = (1 - self.evaporation_factor) * p_matrix
+            return pattern, p_matrix
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            start_prob = row_strengths / total
+        cum_prob = np.cumsum(start_prob)
+        r = np.random.random_sample()
+        try:
+            start_i = np.nonzero(cum_prob > r)[0][0]
+        except IndexError:
+            p_matrix = (1 - self.evaporation_factor) * p_matrix
+            return pattern, p_matrix
+
+        pattern.add_gradual_item(self._parse_gi(attr_keys[start_i]))
+
+        # Grow pattern one item at a time; stop when support would drop
+        for _ in range(m):
+            scores = np.zeros(m)
+            for item in pattern.gradual_items:
+                key = item.as_string()
+                if key in attr_keys:
+                    idx = attr_keys.index(key)
+                    scores += v_matrix[idx] * p_matrix[idx]
+
+            # Zero out attributes already in the pattern
+            for k in range(m):
+                if any(self._parse_gi(attr_keys[k]).attribute_col == item.attribute_col
+                       for item in pattern.gradual_items):
+                    scores[k] = 0
+
+            total = scores.sum()
+            if total == 0:
+                break
 
             with np.errstate(divide='ignore', invalid='ignore'):
-                probability = combine_feature / total
-
-            cum_prob = np.cumsum(probability)
+                prob = scores / total
+            cum_prob = np.cumsum(prob)
             r = np.random.random_sample()
-
             try:
                 j = np.nonzero(cum_prob > r)[0][0]
-                gi = self._parse_gi(attr_keys[j])
-
-                contains = any(
-                    item.attribute_col == gi.attribute_col
-                    for item in pattern.gradual_items
-                )
-
-                if not contains:
-                    pattern.add_gradual_item(gi)
-
             except IndexError:
-                continue
+                break
+
+            new_gi = self._parse_gi(attr_keys[j])
+            if _compute_sup(pattern.gradual_items + [new_gi]) >= self.dataset.thd_supp:
+                pattern.add_gradual_item(new_gi)
+            else:
+                break
 
         p_matrix = (1 - self.evaporation_factor) * p_matrix
         return pattern, p_matrix
@@ -100,7 +143,7 @@ class AntGRAANK(BaseAlgorithm):
         return p_matrix
 
     def _validate_pattern(self, pattern):
-        if len(pattern.gradual_items) < 2:
+        if len(pattern.gradual_items) < (1 if self.include_size_one else 2):
             return False
 
         n = self.dataset.attr_size

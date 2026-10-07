@@ -165,6 +165,9 @@ class SGrite(BaseAlgorithm):
         logger.debug(f"SGrite ({self.variant}): {len(level) // 2} frequent 1-item attributes")
 
         all_frequent: List[_Pat] = []
+        n_candidates = len(level)  # each frequent 1-item attribute counts as a candidate
+        if self.include_size_one:
+            all_frequent.extend(level)
         k = 2
         while level:
             next_level: List[_Pat] = []
@@ -182,6 +185,10 @@ class SGrite(BaseAlgorithm):
                     if key in seen:
                         continue
                     seen.add(key)
+                    # counted here, at the point a new join candidate is
+                    # identified, before use_rc_pruning affects anything
+                    # below, so this count is identical with and without it
+                    n_candidates += 1
 
                     adj = _prune_matrix(cand.adj, min_chain) if self.use_rc_pruning else cand.adj
                     cand.adj = adj
@@ -206,6 +213,7 @@ class SGrite(BaseAlgorithm):
             level = next_level
             k += 1
 
+        self.n_candidates = n_candidates
         patterns: List[GradualPattern] = []
         for pat in all_frequent:
             gp = GradualPattern()
