@@ -26,8 +26,9 @@ class MSGP(BaseAlgorithm):
 
     Args:
         min_support: Minimum support threshold
-        cycle_size: Size of one cycle/season (default: 8)
-        min_ra: Minimum ratio (default: auto-calculated)
+        cycle_size: Number of observations of one cycle (default: 8)
+        min_ra: Minimum fraction of the transitions of a cycle on which a pattern must hold for
+            it to be periodic in that cycle (default: 0.5)
         max_periodicity: Maximum periodicity (default: dataset size)
         max_std: Maximum standard deviation (default: dataset size)
         spmf_path: Path to SPMF jar file
@@ -89,19 +90,25 @@ class MSGP(BaseAlgorithm):
         logger.debug(f"Created {len(lines)} sequences of {L - 1} transitions")
 
     def _extract_periodic_patterns(self, input_file: str, output_file: str):
-        """Periodic patterns common to several sequences, with SPMF's MPFPS-BFS."""
-        n_seq = self._n_cycles()
-        min_ra = self.min_ra if self.min_ra is not None else (1 / self.cycle_size)
+        """Periodic patterns common to several sequences, with SPMF's MPFPS-BFS (Fournier-Viger
+        et al., 2019), whose arguments are (maxStd, minRA, maxPer, minSup): a pattern is periodic in
+        a sequence if it occurs in at least minSup itemsets with periods <= maxPer and period
+        standard deviation <= maxStd, and is output if it is periodic in a fraction >= minRA of
+        the sequences. Here minRA is the seasonal support threshold (fraction of cycles) and minSup
+        is `min_ra` times the number of transitions of a cycle."""
+        transitions = self.cycle_size - 1
+        min_ra = self.min_ra if self.min_ra is not None else 0.5
+        min_occ = max(1, int(np.ceil(min_ra * transitions)))
         max_per = self.max_periodicity if self.max_periodicity is not None else self.cycle_size
         max_std = self.max_std if self.max_std is not None else self.cycle_size
-        min_seq = self.min_support if self.min_support >= 1 else max(1, int(np.ceil(self.min_support * n_seq)))
+        support = self.min_support if self.min_support < 1 else self.min_support / self._n_cycles()
         try:
             from spmf import Spmf
             kw = {}
             if self.spmf_path:
                 kw['spmf_bin_location_dir'] = os.path.dirname(os.path.abspath(self.spmf_path))
             spmf = Spmf("MPFPS-BFS", input_filename=input_file, output_filename=output_file,
-                        arguments=[max_std, min_ra, max_per, int(min_seq)], **kw)
+                        arguments=[max_std, support, max_per, min_occ], **kw)
             spmf.run()
             return True
         except ImportError:

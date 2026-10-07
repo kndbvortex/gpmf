@@ -43,3 +43,17 @@ def test_weekly_pattern_has_full_support():
     pats = MSGP(min_support=0.5, cycle_size=4).mine(data())
     found = {tuple(sorted(p.to_string())): p.support for p in pats}
     assert found[("0+", "1+", "2-", "3+")] == 1.0
+
+
+@needs_spmf
+def test_support_threshold_is_fraction_of_cycles():
+    rows = [list(r) for r in ROWS]
+    for w in (2, 3):                       # weeks 3 and 4: dose no longer rises on Mon->Wed->Fri
+        rows[4 * w + 1][3], rows[4 * w + 2][3] = rows[4 * w][3] - 1, rows[4 * w][3] - 2
+    df = pd.DataFrame(rows, columns=["hr", "bp", "o2", "dose"])
+    key = ("0+", "1+", "2-", "3+")
+    half = {tuple(sorted(p.to_string())): p.support for p in MSGP(min_support=0.5, cycle_size=4).mine(df)}
+    assert half[key] == 0.5
+    assert all(s >= 0.5 for s in half.values())
+    strict = {tuple(sorted(p.to_string())) for p in MSGP(min_support=0.75, cycle_size=4).mine(df)}
+    assert key not in strict
