@@ -189,15 +189,11 @@ class GradualDataset:
             InvalidDataError: If data cannot be read
         """
         if isinstance(data_src, pd.DataFrame):
-            try:
-                _ = data_src.columns.astype(float)
-                data_src.loc[-1] = data_src.columns.to_numpy(dtype=float)
-                data_src.index = data_src.index + 1
-                data_src.sort_index(inplace=True)
-                vals = [f'col_{k}' for k in np.arange(data_src.shape[1])]
-                data_src.columns = vals
-            except (ValueError, TypeError):
-                pass
+            # A DataFrame already has a header: its column labels are the attribute names, even
+            # when they are numbers (gene identifiers, station codes), so they are never read back
+            # as a data row. Work on a copy: the caller's DataFrame is left unchanged.
+            data_src = data_src.copy()
+            data_src.columns = [str(c) for c in data_src.columns]
 
             logger.debug("Data loaded from DataFrame")
             return GradualDataset._clean_data(data_src)

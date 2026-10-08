@@ -60,3 +60,24 @@ class TestGradualDataset:
         df = pd.DataFrame({'label': ['a', 'b', 'c']})
         with pytest.raises(InvalidDataError):
             GradualDataset(df, min_sup=0.5)
+
+
+class TestNumericColumnNames:
+    """Numeric column labels are attribute names, not a data row, and the input is not modified."""
+
+    def test_numeric_string_labels_kept_as_names(self):
+        df = pd.DataFrame({'2390': [1.0, 2.0, 3.0], '2391': [3.0, 1.0, 2.0]})
+        ds = GradualDataset(df, min_sup=0.5)
+        assert ds.row_count == 3
+        assert [t[1].decode() for t in ds.titles] == ['2390', '2391']
+
+    def test_integer_labels_kept_as_names(self):
+        df = pd.DataFrame([[1.0, 3.0], [2.0, 1.0], [3.0, 2.0]])  # header=None style labels 0, 1
+        ds = GradualDataset(df, min_sup=0.5)
+        assert ds.row_count == 3
+
+    def test_caller_dataframe_unchanged(self):
+        df = pd.DataFrame({'1': [1.0, 2.0, 3.0], '2': [3.0, 1.0, 2.0]})
+        before = df.copy()
+        GradualDataset(df, min_sup=0.5)
+        pd.testing.assert_frame_equal(df, before)
