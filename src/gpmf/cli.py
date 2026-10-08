@@ -28,6 +28,12 @@ Examples:
   # Use parallel processing
   gradual-mine graank data.csv --min-support 0.5 --n-jobs -1
 
+  # rc-pruning (GRITE family, GLCM, PGLCM, ParaMiner)
+  gradual-mine sgrite data.csv --min-support 0.3 --use-rc-pruning
+
+  # Maximal patterns only (GRAANK)
+  gradual-mine graank data.csv --min-support 0.5 --maximal
+
   # Verbose output
   gradual-mine graank data.csv --min-support 0.5 --verbose
         """
@@ -47,6 +53,11 @@ Examples:
                         help='Minimum support threshold (0.0 to 1.0, default: 0.5)')
     parser.add_argument('--n-jobs', '-j', type=int, default=1,
                         help='Number of parallel jobs (-1 for all cores, default: 1)')
+    parser.add_argument('--use-rc-pruning', action='store_true',
+                        help='Enable rc-pruning (algorithms that support it: GRITE family, GLCM, '
+                             'PGLCM, ParaMiner)')
+    parser.add_argument('--maximal', action='store_true',
+                        help='Keep only maximal patterns (GRAANK)')
     parser.add_argument('--output', '-o', type=str,
                         help='Output file path (JSON format)')
     parser.add_argument('--csv', type=str,
@@ -87,12 +98,21 @@ Examples:
     try:
         print(f"Mining patterns with {args.algorithm} (min_support={args.min_support})...")
 
+        # Options are only passed when set, and refused by algorithms that do not support them
+        # (unknown keyword arguments would otherwise be ignored silently).
+        options = {name: True for name in ('use_rc_pruning', 'maximal') if getattr(args, name)}
         miner = GradualPatternMiner(
             algorithm=args.algorithm,
             data=args.data,
             min_support=args.min_support,
-            n_jobs=args.n_jobs
+            n_jobs=args.n_jobs,
+            **options
         )
+        unsupported = [name for name in options if not hasattr(miner.algorithm, name)]
+        if unsupported:
+            flags = ', '.join('--' + name.replace('_', '-') for name in unsupported)
+            print(f"Error: {args.algorithm} does not support {flags}", file=sys.stderr)
+            sys.exit(2)
 
         result = miner.mine_and_get_result()
 

@@ -57,7 +57,7 @@ patterns = model.mine("data.csv")
 
 | Criterion | Applies to | Authors |
 |-----------|-----------|---------|
-| Row–Column pruning (`--use-rc-pruning`) | GRITE, SGrite, GLCM | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025) — [paper](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
+| Row–Column pruning (`--use-rc-pruning`) | GRITE, SGrite (all variants), GLCM, PGLCM, ParaMiner | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025) — [paper](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
 
 ## CLI
 
@@ -73,6 +73,12 @@ gradual-mine graank data.csv --min-support 0.5 --output results.json --csv resul
 
 # Parallel execution
 gradual-mine paraminer data.csv --min-support 0.5 --n-jobs -1
+
+# Row–Column pruning (refused by algorithms that do not support it)
+gradual-mine sgrite data.csv --min-support 0.3 --use-rc-pruning
+
+# Maximal patterns only (GRAANK)
+gradual-mine graank data.csv --min-support 0.5 --maximal
 ```
 
 ## Development
