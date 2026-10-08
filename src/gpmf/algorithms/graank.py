@@ -12,10 +12,28 @@ logger = logging.getLogger(__name__)
 class GRAANK(BaseAlgorithm):
     # Apriori-like gradual pattern mining via bitmap AND + support filtering
 
-    def __init__(self, min_support: float = 0.5, n_jobs: int = 1, **kwargs):
+    def __init__(self, min_support: float = 0.5, n_jobs: int = 1, maximal: bool = False, **kwargs):
+        """maximal: keep only maximal patterns. GRAANK as published (Laurent et al., 2009) returns
+        the frequent patterns found level-wise, where a pattern can be kept although its
+        complementary orientation is contained in a larger pattern; with maximal=True a pattern is
+        removed when it, or its complement, is a strict subset of another returned pattern."""
         super().__init__(min_support, **kwargs)
         self.n_jobs = validate_n_jobs(n_jobs)
+        self.maximal = maximal
         self._params['n_jobs'] = self.n_jobs
+        self._params['maximal'] = maximal
+
+    @staticmethod
+    def _maximal_only(patterns: List[GradualPattern]) -> List[GradualPattern]:
+        def items(p):
+            return frozenset((int(g.attribute_col), g.symbol) for g in p.gradual_items)
+
+        def complement(its):
+            return frozenset((c, '-' if s == '+' else '+') for c, s in its)
+
+        sets = [items(p) for p in patterns]
+        return [p for p, its in zip(patterns, sets)
+                if not any(its < other or complement(its) < other for other in sets)]
 
     @staticmethod
     def _inv_arr(g_item: Tuple) -> Tuple:
@@ -133,6 +151,9 @@ class GRAANK(BaseAlgorithm):
                     gp.add_gradual_item(GradualItem(col, symbol))
                     gp.set_support(sup)
                     gradual_patterns.append(gp)
+
+        if self.maximal:
+            gradual_patterns = self._maximal_only(gradual_patterns)
 
         logger.info(f"GRAANK found {len(gradual_patterns)} patterns (invalid: {invalid_count})")
         return gradual_patterns

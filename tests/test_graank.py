@@ -1,6 +1,7 @@
 """Tests for the GRAANK algorithm."""
 import pytest
 import pandas as pd
+import numpy as np
 from gpmf.algorithms.graank import GRAANK
 
 
@@ -104,3 +105,32 @@ class TestGRAANK:
         algo = GRAANK(min_support=0.5)
         patterns = algo.fit(df).get_patterns()
         assert isinstance(patterns, list)
+
+
+class TestGRAANKMaximal:
+    @staticmethod
+    def _items(p):
+        return frozenset((g.attribute_col, g.symbol) for g in p.gradual_items)
+
+    def _fit(self, df, **kw):
+        algo = GRAANK(min_support=0.5, **kw)
+        algo.fit(df)
+        return algo.get_patterns()
+
+    def test_maximal_patterns_contain_no_subset_or_complement_subset(self):
+        rng = np.random.default_rng(1)
+        a = np.arange(20, dtype=float)
+        df = pd.DataFrame({'A': a, 'B': a + rng.normal(0, 2, 20), 'C': -a + rng.normal(0, 2, 20),
+                           'D': rng.normal(0, 1, 20)})
+        default, maximal = self._fit(df), self._fit(df, maximal=True)
+        sets = [self._items(p) for p in maximal]
+        comp = lambda s: frozenset((c, '-' if v == '+' else '+') for c, v in s)
+        for s in sets:
+            assert not any(s < o or comp(s) < o for o in sets)
+        # Every default pattern is covered (up to orientation) by a maximal one, and maximal ones are kept.
+        dsets = [self._items(p) for p in default]
+        assert all(any(s <= m or comp(s) <= m for m in sets) for s in dsets)
+        assert set(sets) <= set(dsets) | {comp(s) for s in dsets}
+
+    def test_default_is_unchanged(self):
+        assert GRAANK().maximal is False
