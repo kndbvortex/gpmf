@@ -47,7 +47,7 @@ patterns = model.mine("data.csv")
 | **GRITE** | `grite` | Di-Jorio, Laurent & Teisseire (2009) | [paper](https://hal.inrae.fr/hal-02592797v1) |
 | **SGrite** | `sgrite` / `sgopt` / `sg1` / `sgb1` / `sgb2` | Tayou Djamegni, Tabueu Fotso & Kenmogne (2021) | [paper](https://doi.org/10.1016/j.mlwa.2021.100068) |
 | **ParaMiner** | `paraminer` | Négrevergne, Termier, Rousset & Méhaut (2014) | [paper](https://doi.org/10.1007/s10618-013-0313-2) |
-| **ACO-GRAANK** | `ant-graank` | Owuor, Laurent & Orero (2019) | [paper](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883) |
+| **ACO-GRAANK** | `ant-graank` | Owuor, Runkler, Laurent, Orero & Menya (2021) | [paper](https://doi.org/10.1007/s13042-021-01390-w) |
 | **TGrad** | `tgrad` | Owuor, Laurent & Orero (2019) | [paper](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883) |
 | **MSGP** | `msgp` | Lonlac, Doniec, Lujak & Lecoeuche (2020) | [paper](https://doi.org/10.1007/978-3-030-59065-9_16) |
 | **GLCM** | `glcm` | Do, Termier, Laurent et al. (2015) | [paper](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1) |
