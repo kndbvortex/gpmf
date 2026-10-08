@@ -136,6 +136,10 @@ def _glcm_loop(
             counter[0] += 1
 
         bm1_for_supp = _prune_matrix(bm1, min_chain) if use_rc_pruning else bm1
+        # Fewer than min_chain transactions left after pruning: no chain can reach min_chain, so the
+        # candidate is infrequent and its support need not be computed.
+        if use_rc_pruning and bm1_for_supp.shape[0] < min_chain:
+            continue
         supp = _compute_support(bm1_for_supp, n_total=n)
         if supp < min_supp:
             continue
