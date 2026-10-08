@@ -144,7 +144,7 @@ class SGrite(BaseAlgorithm):
         return _support_alg3(adj, use_stack=True)
 
     def _mine(self) -> List[GradualPattern]:
-        data = self.dataset.data.astype(float)
+        data = self.dataset.numeric_data()
         n = data.shape[0]
         attr_cols = self.dataset.attr_cols
 

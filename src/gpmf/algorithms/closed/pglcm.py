@@ -26,7 +26,7 @@ class PGLCM(BaseAlgorithm):
         self._params['use_rc_pruning'] = use_rc_pruning
 
     def _mine(self) -> List[GradualPattern]:
-        data = self.dataset.data.astype(float)
+        data = self.dataset.numeric_data()
         n = data.shape[0]
         attr_cols = self.dataset.attr_cols
         min_supp = self.min_support / n if self.min_support >= 1 else self.min_support

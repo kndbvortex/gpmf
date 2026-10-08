@@ -87,6 +87,17 @@ class GradualDataset:
                 continue
         return np.array(time_cols)
 
+    def numeric_data(self) -> np.ndarray:
+        """Float copy of the data in which time columns (dates) are NaN.
+
+        Miners index it with attr_cols, so column indices are those of the dataset; converting
+        the whole table with data.astype(float) fails as soon as a date column is present.
+        """
+        out = np.full(self.data.shape, np.nan)
+        if len(self.attr_cols):
+            out[:, self.attr_cols] = self.data[:, self.attr_cols].astype(float)
+        return out
+
     def get_gi_bitmap(self, col: int) -> np.ndarray:
         """Compute bitmap matrix for a specific attribute.
 

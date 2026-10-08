@@ -78,8 +78,11 @@ class ParaMiner(BaseAlgorithm):
         if self.dataset is None:
             raise ValueError("No data loaded. Call fit() first.")
 
-        data_array = self.dataset.data
-        titles = self.dataset.titles
+        # Only the attribute columns go to ParaMiner (a date column cannot be parsed as a number);
+        # item indices are mapped back to dataset columns below.
+        attr_cols = self.dataset.attr_cols
+        data_array = self.dataset.data[:, attr_cols]
+        titles = [self.dataset.titles[c] for c in attr_cols]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             self._temp_file = f.name
@@ -107,7 +110,7 @@ class ParaMiner(BaseAlgorithm):
                 pattern.set_support(pp.support)
                 for item in pp.items:
                     symbol = '+' if item.variation == ParaminerVariation.INCREASE else '-'
-                    gi = GI(attr_col=item.attribute_index, symbol=symbol)
+                    gi = GI(attr_col=int(attr_cols[item.attribute_index]), symbol=symbol)
                     pattern.add_gradual_item(gi)
                 patterns.append(pattern)
 
