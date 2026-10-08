@@ -41,18 +41,17 @@ def _prune_matrix(bm: np.ndarray, min_chain: int) -> np.ndarray:
     threshold = min_chain - 1
     result = bm.copy()
     keep = np.ones(bm.shape[0], dtype=bool)
+    # Degrees are computed once and then decreased by the edges of the transactions removed at each
+    # round, instead of summing the whole matrix again; the fixed point (the surviving set) is the same.
+    deg = result.sum(axis=1, dtype=np.int64) + result.sum(axis=0, dtype=np.int64)
     while True:
-        row_s = result.sum(axis=1)
-        col_s = result.sum(axis=0)
-        alive = (row_s + col_s) >= threshold
-        if alive.all():
+        drop = keep & (deg < threshold)
+        if not drop.any():
             break
-        prev_nnz = result.sum()
-        result[~alive, :] = False
-        result[:, ~alive] = False
-        keep &= alive
-        if result.sum() == prev_nnz:
-            break
+        deg -= result[:, drop].sum(axis=1, dtype=np.int64) + result[drop, :].sum(axis=0, dtype=np.int64)
+        result[drop, :] = False
+        result[:, drop] = False
+        keep &= ~drop
     if keep.all():
         return result
     idx = np.where(keep)[0]
