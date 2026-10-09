@@ -4,7 +4,7 @@
 
 use crate::rust_conversion::{build_item_matrices, convert_to_gradual_items};
 use crate::rust_datatypes::{GradualPatternResult, TransactionPair};
-use crate::rust_miner_engine::{mine_recursive, MiningContext};
+use crate::rust_miner_engine::{mine_recursive, mine_recursive_par, MiningContext};
 use crate::BoolMatrix;
 use pyo3::prelude::*;
 use std::collections::HashSet;
@@ -155,15 +155,29 @@ impl RustGradualMiner {
             verbose: self.verbose,
         };
 
-        mine_recursive(
-            empty_pattern,
-            all_vtids,
-            empty_exclusion,
-            &context,
-            &mut found_patterns,
-            &mut results,
-            0,
-        );
+        if self.num_threads == Some(1) {
+            // one thread: the original sequential search
+            mine_recursive(
+                empty_pattern,
+                all_vtids,
+                empty_exclusion,
+                &context,
+                &mut found_patterns,
+                &mut results,
+                0,
+            );
+        } else {
+            // several threads (or None = all cores): same search, candidate tests of each node in parallel
+            mine_recursive_par(
+                empty_pattern,
+                all_vtids,
+                empty_exclusion,
+                &context,
+                &mut found_patterns,
+                &mut results,
+                0,
+            );
+        }
 
         if self.verbose {
             println!("\nMining complete! Found {} patterns", results.len());

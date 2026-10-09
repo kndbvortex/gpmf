@@ -159,6 +159,89 @@ pub fn mine_recursive(
     }
 }
 
+/// Same search as `mine_recursive`, with the candidate tests of each node run in parallel.
+///
+/// At each node, the membership test and the closure of every candidate extension only depend on the
+/// node, so they are computed concurrently with rayon; the results are then processed in the order of
+/// the item codes, with the same three deduplication checks and the same shared set of found patterns
+/// as the sequential search. The patterns, their supports and their order are therefore exactly those
+/// of `mine_recursive`, whatever the number of threads.
+pub fn mine_recursive_par(
+    current_pattern: Vec<usize>,
+    current_vtids: HashSet<usize>,
+    exclusion_list: HashSet<usize>,
+    context: &MiningContext,
+    found_patterns: &mut HashSet<Vec<usize>>,
+    results: &mut Vec<GradualPatternResult>,
+    depth: usize,
+) {
+    use rayon::prelude::*;
+
+    let max_item = context.num_attributes * 2;
+    let candidates: Vec<usize> = (0..max_item)
+        .filter(|c| !exclusion_list.contains(c) && !current_pattern.contains(c))
+        .collect();
+
+    // (item_code, support, extended vtids, extended pattern, closed pattern), in item order
+    let tested: Vec<(usize, usize, HashSet<usize>, Vec<usize>, Vec<usize>)> = candidates
+        .par_iter()
+        .filter_map(|&item_code| {
+            let (support, extended_vtids) = test_membership(
+                &current_pattern,
+                item_code,
+                &current_vtids,
+                context.item_to_vtids,
+                context.vtid_to_pair,
+                context.threshold,
+            )?;
+            let mut extended_pattern = current_pattern.clone();
+            extended_pattern.push(item_code);
+            extended_pattern.sort_unstable();
+            let closed_pattern = compute_closure(
+                &extended_pattern,
+                &extended_vtids,
+                context.item_matrices,
+                context.item_to_vtids,
+                context.vtid_to_pair,
+                context.num_attributes,
+            );
+            Some((item_code, support, extended_vtids, extended_pattern, closed_pattern))
+        })
+        .collect();
+
+    for (item_code, support, extended_vtids, extended_pattern, closed_pattern) in tested {
+        let extended: HashSet<usize> = extended_pattern.iter().copied().collect();
+        let new_elements: HashSet<usize> = closed_pattern
+            .iter()
+            .copied()
+            .filter(|e| !extended.contains(e))
+            .collect();
+        if new_elements.iter().any(|&e| e < item_code) {
+            continue;
+        }
+        if new_elements.iter().any(|e| exclusion_list.contains(e)) {
+            continue;
+        }
+        if found_patterns.contains(&closed_pattern) {
+            continue;
+        }
+        found_patterns.insert(closed_pattern.clone());
+        results.push(GradualPatternResult::new(codes_to_items(&closed_pattern), support));
+
+        let mut new_exclusion = exclusion_list.clone();
+        new_exclusion.extend(closed_pattern.iter().copied());
+        mine_recursive_par(
+            closed_pattern,
+            extended_vtids,
+            new_exclusion,
+            context,
+            found_patterns,
+            results,
+            depth + 1,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
