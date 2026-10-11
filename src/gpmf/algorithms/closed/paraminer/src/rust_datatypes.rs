@@ -162,6 +162,53 @@ impl VirtualTransaction {
     }
 }
 
+/// Set of virtual transaction IDs, stored as a bitset (bit `vtid % 64` of word `vtid / 64`)
+pub type VtidSet = Vec<u64>;
+
+#[cfg(test)]
+/// Bitset of `num_vtids` bits containing the given vtids
+pub fn vtidset_from_ids(ids: &[usize], num_vtids: usize) -> VtidSet {
+    let mut set = vec![0u64; (num_vtids + 63) / 64];
+    for &id in ids {
+        set[id / 64] |= 1u64 << (id % 64);
+    }
+    set
+}
+
+/// Bitset containing every vtid in [0, num_vtids)
+pub fn vtidset_full(num_vtids: usize) -> VtidSet {
+    let mut set = vec![u64::MAX; num_vtids / 64];
+    if num_vtids % 64 != 0 {
+        set.push((1u64 << (num_vtids % 64)) - 1);
+    }
+    set
+}
+
+/// Intersection of two bitsets of the same length
+pub fn vtidset_and(a: &[u64], b: &[u64]) -> VtidSet {
+    a.iter().zip(b).map(|(x, y)| x & y).collect()
+}
+
+/// True if every vtid of `a` is in `b`
+pub fn vtidset_is_subset(a: &[u64], b: &[u64]) -> bool {
+    a.iter().zip(b).all(|(x, y)| x & !y == 0)
+}
+
+/// The vtids of a bitset, in increasing order
+pub fn vtidset_iter(set: &[u64]) -> impl Iterator<Item = usize> + '_ {
+    set.iter().enumerate().flat_map(|(w, &word)| {
+        let mut bits = word;
+        std::iter::from_fn(move || {
+            if bits == 0 {
+                return None;
+            }
+            let b = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            Some(w * 64 + b)
+        })
+    })
+}
+
 /// Helper to convert between Python and Rust variations
 impl From<&str> for Variation {
     fn from(s: &str) -> Self {

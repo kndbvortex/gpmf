@@ -2,18 +2,18 @@
 //!
 //! Tests if extending a pattern maintains the minimum support threshold.
 
-use crate::rust_datatypes::TransactionPair;
+use crate::rust_datatypes::{vtidset_and, vtidset_iter, TransactionPair, VtidSet};
 use crate::BoolMatrix;
-use std::collections::{HashMap, HashSet};
 
 /// Test if base_pattern U {extension} is a frequent pattern.
 ///
 /// # Arguments
 /// * `base_pattern` - Current pattern (list of item codes)
 /// * `extension` - Item code to add
-/// * `base_vtids` - Virtual transaction IDs supporting base_pattern
-/// * `item_to_vtids` - Mapping from item code to vtids containing it
+/// * `base_vtids` - Virtual transaction IDs supporting base_pattern (bitset)
+/// * `item_vtids` - For each item code, the bitset of vtids containing it
 /// * `vtid_to_pair` - Mapping from vtid to transaction pair
+/// * `num_transactions` - Number of original transactions
 /// * `threshold` - Minimum support threshold
 ///
 /// # Returns
@@ -21,59 +21,44 @@ use std::collections::{HashMap, HashSet};
 pub fn test_membership(
     base_pattern: &[usize],
     extension: usize,
-    base_vtids: &HashSet<usize>,
-    item_to_vtids: &[Vec<usize>],
+    base_vtids: &[u64],
+    item_vtids: &[VtidSet],
     vtid_to_pair: &[TransactionPair],
+    num_transactions: usize,
     threshold: usize,
-) -> Option<(usize, HashSet<usize>)> {
-    // Build extended pattern
-    let mut pattern = base_pattern.to_vec();
-    pattern.push(extension);
-    pattern.sort_unstable();
-
-    // Validate: first item must be an increase (even code)
-    if pattern[0] % 2 == 1 {
+) -> Option<(usize, VtidSet)> {
+    // Validate: first item of the extended pattern must be an increase (even code)
+    let first = base_pattern.iter().copied().chain(std::iter::once(extension)).min()?;
+    if first % 2 == 1 {
         return None;
     }
 
-    // Get supporting vtids for extension
-    let ext_vtids: HashSet<usize> = item_to_vtids[extension].iter().copied().collect();
+    // Supporting vtids: intersection of the base vtids and the vtids of the extension
+    let supporting_vtids = vtidset_and(base_vtids, &item_vtids[extension]);
 
-    // Compute intersection
-    let supporting_vtids: HashSet<usize> = base_vtids.intersection(&ext_vtids).copied().collect();
-
-    if supporting_vtids.is_empty() {
+    if supporting_vtids.iter().all(|&w| w == 0) {
         return None;
     }
-
-    // Extract transaction pairs from supporting vtids
-    let pairs: Vec<&TransactionPair> = supporting_vtids
-        .iter()
-        .map(|&vtid| &vtid_to_pair[vtid])
-        .collect();
 
     // Build tid mapping: original tid -> dense index [0, num_tids)
-    let mut tid_to_idx: HashMap<usize, usize> = HashMap::new();
-    let mut idx = 0;
-
-    for pair in &pairs {
-        if !tid_to_idx.contains_key(&pair.tid1) {
-            tid_to_idx.insert(pair.tid1, idx);
-            idx += 1;
-        }
-        if !tid_to_idx.contains_key(&pair.tid2) {
-            tid_to_idx.insert(pair.tid2, idx);
-            idx += 1;
+    let mut tid_to_idx = vec![u32::MAX; num_transactions];
+    let mut num_tids = 0u32;
+    for vtid in vtidset_iter(&supporting_vtids) {
+        let pair = &vtid_to_pair[vtid];
+        for tid in [pair.tid1, pair.tid2] {
+            if tid_to_idx[tid] == u32::MAX {
+                tid_to_idx[tid] = num_tids;
+                num_tids += 1;
+            }
         }
     }
 
-    let num_tids = tid_to_idx.len();
-
     // Build boolean matrix with dense indices
-    let mut matrix = BoolMatrix::new(num_tids, None);
-    for pair in pairs {
-        let idx1 = tid_to_idx[&pair.tid1];
-        let idx2 = tid_to_idx[&pair.tid2];
+    let mut matrix = BoolMatrix::new(num_tids as usize, None);
+    for vtid in vtidset_iter(&supporting_vtids) {
+        let pair = &vtid_to_pair[vtid];
+        let idx1 = tid_to_idx[pair.tid1] as usize;
+        let idx2 = tid_to_idx[pair.tid2] as usize;
         matrix.set(idx2, idx1, true).unwrap();
     }
 
@@ -105,6 +90,7 @@ fn compute_support(matrix: &BoolMatrix) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rust_datatypes::vtidset_from_ids;
 
     #[test]
     fn test_membership_oracle() {
@@ -115,23 +101,16 @@ mod tests {
             TransactionPair::new(0, 2),
         ];
 
-        let item_to_vtids = vec![
-            vec![0, 2],       // Item 0 in vtids 0, 2
-            vec![1],          // Item 1 in vtid 1
-            vec![0, 1, 2],    // Item 2 in all vtids
+        let item_vtids: Vec<VtidSet> = vec![
+            vtidset_from_ids(&[0, 2], 3),    // Item 0 in vtids 0, 2
+            vtidset_from_ids(&[1], 3),       // Item 1 in vtid 1
+            vtidset_from_ids(&[0, 1, 2], 3), // Item 2 in all vtids
         ];
 
-        let base_vtids: HashSet<usize> = vec![0, 1, 2].into_iter().collect();
+        let base_vtids = vtidset_from_ids(&[0, 1, 2], 3);
 
         // Test extending with item 2 (should work)
-        let result = test_membership(
-            &[0],
-            2,
-            &base_vtids,
-            &item_to_vtids,
-            &vtid_to_pair,
-            1, // threshold
-        );
+        let result = test_membership(&[0], 2, &base_vtids, &item_vtids, &vtid_to_pair, 3, 1);
 
         assert!(result.is_some());
     }
@@ -140,18 +119,11 @@ mod tests {
     fn test_invalid_first_item() {
         // First item must be increase (even code)
         let vtid_to_pair = vec![TransactionPair::new(0, 1)];
-        let item_to_vtids = vec![vec![0], vec![0]];
-        let base_vtids: HashSet<usize> = vec![0].into_iter().collect();
+        let item_vtids = vec![vtidset_from_ids(&[0], 1), vtidset_from_ids(&[0], 1)];
+        let base_vtids = vtidset_from_ids(&[0], 1);
 
         // Start with item 1 (decrease) - should be invalid
-        let result = test_membership(
-            &[],
-            1,
-            &base_vtids,
-            &item_to_vtids,
-            &vtid_to_pair,
-            1,
-        );
+        let result = test_membership(&[], 1, &base_vtids, &item_vtids, &vtid_to_pair, 2, 1);
 
         assert!(result.is_none());
     }

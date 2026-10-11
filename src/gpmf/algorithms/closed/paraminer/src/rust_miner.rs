@@ -2,10 +2,9 @@
 //!
 //! Provides the main API for Python integration.
 
-use crate::rust_conversion::{build_item_matrices, convert_to_gradual_items};
-use crate::rust_datatypes::{GradualPatternResult, TransactionPair};
+use crate::rust_conversion::{build_item_vtids, convert_to_gradual_items};
+use crate::rust_datatypes::{vtidset_full, GradualPatternResult, TransactionPair, VtidSet};
 use crate::rust_miner_engine::{mine_recursive, mine_recursive_par, MiningContext};
-use crate::BoolMatrix;
 use pyo3::prelude::*;
 use std::collections::HashSet;
 
@@ -23,8 +22,7 @@ pub struct RustGradualMiner {
     threshold: usize,
 
     // Built during mining (stored to avoid recomputation)
-    item_matrices: Vec<BoolMatrix>,
-    item_to_vtids: Vec<Vec<usize>>,
+    item_vtids: Vec<VtidSet>,
     vtid_to_pair: Vec<TransactionPair>,
 }
 
@@ -55,8 +53,7 @@ impl RustGradualMiner {
             num_transactions: 0,
             num_attributes: 0,
             threshold: 0,
-            item_matrices: Vec::new(),
-            item_to_vtids: Vec::new(),
+            item_vtids: Vec::new(),
             vtid_to_pair: Vec::new(),
         }
     }
@@ -122,17 +119,14 @@ impl RustGradualMiner {
             println!("Created {} virtual transactions", num_vtrans);
         }
 
-        // Step 2: Build boolean matrices
+        // Step 2: Build the vtid bitset of each item
         if self.verbose {
-            println!("Building boolean matrices...");
+            println!("Building item bitsets...");
         }
 
         let num_items = self.num_attributes * 2;
-        let (item_matrices, item_to_vtids) =
-            build_item_matrices(&vtransactions, num_items, self.num_transactions);
-
-        self.item_matrices = item_matrices;
-        self.item_to_vtids = item_to_vtids;
+        self.item_vtids = build_item_vtids(&vtransactions, num_items);
+        drop(vtransactions);
 
         // Step 3: Start mining from empty pattern
         if self.verbose {
@@ -143,13 +137,13 @@ impl RustGradualMiner {
         let mut results: Vec<GradualPatternResult> = Vec::new();
 
         let empty_pattern = Vec::new();
-        let all_vtids: HashSet<usize> = (0..num_vtrans).collect();
+        let all_vtids = vtidset_full(num_vtrans);
         let empty_exclusion = HashSet::new();
 
         let context = MiningContext {
-            item_matrices: &self.item_matrices,
-            item_to_vtids: &self.item_to_vtids,
+            item_vtids: &self.item_vtids,
             vtid_to_pair: &self.vtid_to_pair,
+            num_transactions: self.num_transactions,
             num_attributes: self.num_attributes,
             threshold: self.threshold,
             verbose: self.verbose,

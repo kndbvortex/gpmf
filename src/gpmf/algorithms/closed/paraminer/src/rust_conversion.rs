@@ -2,8 +2,7 @@
 //!
 //! Converts transactions to virtual transactions and builds boolean matrices.
 
-use crate::rust_datatypes::{TransactionPair, VirtualTransaction};
-use crate::BoolMatrix;
+use crate::rust_datatypes::{TransactionPair, VirtualTransaction, VtidSet};
 use rayon::prelude::*;
 use std::sync::Mutex;
 
@@ -94,51 +93,25 @@ pub fn convert_to_gradual_items(
     (vtransactions, pairs)
 }
 
-/// Build boolean matrices for each gradual item.
-///
-/// For each item, the matrix BM[i,j] = 1 if the virtual transaction
-/// formed by original transactions (i,j) contains that item.
+/// Build, for each gradual item, the bitset of the virtual transactions containing it.
 ///
 /// # Arguments
 /// * `vtransactions` - List of virtual transactions
 /// * `num_items` - Total number of items (2 * num_attributes)
-/// * `num_transactions` - Number of original transactions
 ///
 /// # Returns
-/// Tuple of (item_matrices, item_to_vtids)
-/// - item_matrices: Vec of BoolMatrix, one per item
-/// - item_to_vtids: Vec of Vec<usize>, mapping each item to vtids containing it
-pub fn build_item_matrices(
-    vtransactions: &[VirtualTransaction],
-    num_items: usize,
-    num_transactions: usize,
-) -> (Vec<BoolMatrix>, Vec<Vec<usize>>) {
-    // Build transposed representation: item -> list of vtids
-    let mut item_to_vtids: Vec<Vec<usize>> = vec![Vec::new(); num_items];
+/// item_vtids: one bitset of vtids per item code
+pub fn build_item_vtids(vtransactions: &[VirtualTransaction], num_items: usize) -> Vec<VtidSet> {
+    let num_vtids = vtransactions.len();
+    let mut item_vtids: Vec<VtidSet> = vec![vec![0u64; (num_vtids + 63) / 64]; num_items];
 
     for vtrans in vtransactions {
         for &item in &vtrans.items {
-            item_to_vtids[item].push(vtrans.vtid);
+            item_vtids[item][vtrans.vtid / 64] |= 1u64 << (vtrans.vtid % 64);
         }
     }
 
-    // Build boolean matrices
-    let item_matrices: Vec<BoolMatrix> = (0..num_items)
-        .into_par_iter()
-        .map(|item_code| {
-            let mut matrix = BoolMatrix::new(num_transactions, None);
-
-            for &vtid in &item_to_vtids[item_code] {
-                let pair = &vtransactions[vtid].pair;
-                // Set matrix[tid2, tid1] = 1 (note the order)
-                matrix.set(pair.tid2, pair.tid1, true).unwrap();
-            }
-
-            matrix
-        })
-        .collect();
-
-    (item_matrices, item_to_vtids)
+    item_vtids
 }
 
 #[cfg(test)]
@@ -168,22 +141,24 @@ mod tests {
     }
 
     #[test]
-    fn test_build_matrices() {
+    fn test_build_item_vtids() {
         let transactions = vec![
             vec![1.0, 2.0],
             vec![2.0, 1.0],
         ];
 
         let (vtransactions, _) = convert_to_gradual_items(&transactions, 2);
-        let (matrices, item_to_vtids) = build_item_matrices(&vtransactions, 4, 2);
+        let item_vtids = build_item_vtids(&vtransactions, 4);
 
-        // Should have 4 matrices (2 attributes * 2 variations)
-        assert_eq!(matrices.len(), 4);
-        assert_eq!(item_to_vtids.len(), 4);
-
-        // Check that matrices have correct size
-        for matrix in &matrices {
-            assert_eq!(matrix.get_size(), 2);
+        // 4 items (2 attributes * 2 variations), each vtid has one item per attribute
+        assert_eq!(item_vtids.len(), 4);
+        for vt in &vtransactions {
+            for k in 0..2 {
+                let count = (2 * k..2 * k + 2)
+                    .filter(|&item| item_vtids[item][vt.vtid / 64] >> (vt.vtid % 64) & 1 == 1)
+                    .count();
+                assert_eq!(count, 1);
+            }
         }
     }
 }

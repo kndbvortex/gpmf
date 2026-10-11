@@ -3,16 +3,15 @@
 //! Implements DFS enumeration with closure-based deduplication.
 
 use crate::rust_closure::compute_closure;
-use crate::rust_datatypes::{codes_to_items, GradualPatternResult, TransactionPair};
+use crate::rust_datatypes::{codes_to_items, GradualPatternResult, TransactionPair, VtidSet};
 use crate::rust_oracle::test_membership;
-use crate::BoolMatrix;
 use std::collections::HashSet;
 
 /// Context passed to recursive mining function
 pub struct MiningContext<'a> {
-    pub item_matrices: &'a [BoolMatrix],
-    pub item_to_vtids: &'a [Vec<usize>],
+    pub item_vtids: &'a [VtidSet],
     pub vtid_to_pair: &'a [TransactionPair],
+    pub num_transactions: usize,
     pub num_attributes: usize,
     pub threshold: usize,
     pub verbose: bool,
@@ -30,7 +29,7 @@ pub struct MiningContext<'a> {
 /// * `depth` - Current recursion depth (for debugging)
 pub fn mine_recursive(
     current_pattern: Vec<usize>,
-    current_vtids: HashSet<usize>,
+    current_vtids: VtidSet,
     exclusion_list: HashSet<usize>,
     context: &MiningContext,
     found_patterns: &mut HashSet<Vec<usize>>,
@@ -50,8 +49,9 @@ pub fn mine_recursive(
             &current_pattern,
             item_code,
             &current_vtids,
-            context.item_to_vtids,
+            context.item_vtids,
             context.vtid_to_pair,
+            context.num_transactions,
             context.threshold,
         );
 
@@ -76,9 +76,7 @@ pub fn mine_recursive(
             let closed_pattern = compute_closure(
                 &extended_pattern,
                 &extended_vtids,
-                context.item_matrices,
-                context.item_to_vtids,
-                context.vtid_to_pair,
+                context.item_vtids,
                 context.num_attributes,
             );
 
@@ -168,7 +166,7 @@ pub fn mine_recursive(
 /// of `mine_recursive`, whatever the number of threads.
 pub fn mine_recursive_par(
     current_pattern: Vec<usize>,
-    current_vtids: HashSet<usize>,
+    current_vtids: VtidSet,
     exclusion_list: HashSet<usize>,
     context: &MiningContext,
     found_patterns: &mut HashSet<Vec<usize>>,
@@ -183,15 +181,16 @@ pub fn mine_recursive_par(
         .collect();
 
     // (item_code, support, extended vtids, extended pattern, closed pattern), in item order
-    let tested: Vec<(usize, usize, HashSet<usize>, Vec<usize>, Vec<usize>)> = candidates
+    let tested: Vec<(usize, usize, VtidSet, Vec<usize>, Vec<usize>)> = candidates
         .par_iter()
         .filter_map(|&item_code| {
             let (support, extended_vtids) = test_membership(
                 &current_pattern,
                 item_code,
                 &current_vtids,
-                context.item_to_vtids,
+                context.item_vtids,
                 context.vtid_to_pair,
+                context.num_transactions,
                 context.threshold,
             )?;
             let mut extended_pattern = current_pattern.clone();
@@ -200,9 +199,7 @@ pub fn mine_recursive_par(
             let closed_pattern = compute_closure(
                 &extended_pattern,
                 &extended_vtids,
-                context.item_matrices,
-                context.item_to_vtids,
-                context.vtid_to_pair,
+                context.item_vtids,
                 context.num_attributes,
             );
             Some((item_code, support, extended_vtids, extended_pattern, closed_pattern))
