@@ -14,6 +14,7 @@ pub struct MiningContext<'a> {
     pub num_transactions: usize,
     pub num_attributes: usize,
     pub threshold: usize,
+    pub use_rc_pruning: bool,
     pub verbose: bool,
 }
 
@@ -53,6 +54,7 @@ pub fn mine_recursive(
             context.vtid_to_pair,
             context.num_transactions,
             context.threshold,
+            context.use_rc_pruning,
         );
 
         if let Some((support, extended_vtids)) = membership_result {
@@ -192,6 +194,7 @@ pub fn mine_recursive_par(
                 context.vtid_to_pair,
                 context.num_transactions,
                 context.threshold,
+                context.use_rc_pruning,
             )?;
             let mut extended_pattern = current_pattern.clone();
             extended_pattern.push(item_code);

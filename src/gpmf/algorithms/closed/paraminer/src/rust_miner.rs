@@ -13,6 +13,7 @@ use std::collections::HashSet;
 pub struct RustGradualMiner {
     min_support: f64,
     num_threads: Option<usize>,
+    use_rc_pruning: bool,
     verbose: bool,
 
     // Data (loaded)
@@ -34,9 +35,15 @@ impl RustGradualMiner {
     /// * `min_support` - Minimum support threshold (0-1 for relative, >1 for absolute)
     /// * `num_threads` - Number of threads for parallel processing (None = auto)
     /// * `verbose` - Print debug information during mining
+    /// * `use_rc_pruning` - Compute supports on the pairs left by row-column pruning
     #[new]
-    #[pyo3(signature = (min_support, num_threads=None, verbose=None))]
-    fn new(min_support: f64, num_threads: Option<usize>, verbose: Option<bool>) -> Self {
+    #[pyo3(signature = (min_support, num_threads=None, verbose=None, use_rc_pruning=None))]
+    fn new(
+        min_support: f64,
+        num_threads: Option<usize>,
+        verbose: Option<bool>,
+        use_rc_pruning: Option<bool>,
+    ) -> Self {
         // Set number of threads if specified
         if let Some(threads) = num_threads {
             rayon::ThreadPoolBuilder::new()
@@ -48,6 +55,7 @@ impl RustGradualMiner {
         RustGradualMiner {
             min_support,
             num_threads,
+            use_rc_pruning: use_rc_pruning.unwrap_or(false),
             verbose: verbose.unwrap_or(false),
             transactions: Vec::new(),
             num_transactions: 0,
@@ -146,6 +154,7 @@ impl RustGradualMiner {
             num_transactions: self.num_transactions,
             num_attributes: self.num_attributes,
             threshold: self.threshold,
+            use_rc_pruning: self.use_rc_pruning,
             verbose: self.verbose,
         };
 
@@ -209,14 +218,14 @@ mod tests {
 
     #[test]
     fn test_miner_creation() {
-        let miner = RustGradualMiner::new(0.3, None, Some(false));
+        let miner = RustGradualMiner::new(0.3, None, Some(false), None);
         assert_eq!(miner.min_support, 0.3);
         assert_eq!(miner.num_transactions, 0);
     }
 
     #[test]
     fn test_load_transactions() {
-        let mut miner = RustGradualMiner::new(0.5, None, Some(false));
+        let mut miner = RustGradualMiner::new(0.5, None, Some(false), None);
         let transactions = vec![
             vec![1.0, 2.0, 3.0],
             vec![2.0, 3.0, 4.0],
@@ -233,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_threshold_absolute() {
-        let mut miner = RustGradualMiner::new(5.0, None, Some(false));
+        let mut miner = RustGradualMiner::new(5.0, None, Some(false), None);
         let transactions = vec![vec![1.0]; 10];
 
         miner.load_transactions(transactions, 1);

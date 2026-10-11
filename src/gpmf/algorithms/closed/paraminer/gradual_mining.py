@@ -31,7 +31,7 @@ class GradualMiner:
             self.use_rust = False
 
         if self.use_rust and RustGradualMiner is not None:
-            self._rust_miner = RustGradualMiner(min_support, num_threads, verbose)
+            self._rust_miner = RustGradualMiner(min_support, num_threads, verbose, use_rc_pruning)
             self._use_full_rust = True
         else:
             self._use_full_rust = False
