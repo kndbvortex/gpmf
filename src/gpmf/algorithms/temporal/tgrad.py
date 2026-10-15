@@ -116,10 +116,24 @@ class TGrad(BaseAlgorithm):
             logger.debug(f"Mining failed for step {step}: {e}")
             return []
 
+        # A temporal pattern relates the target (reference) attribute to the others shifted by `step`
+        # (Owuor et al., 2019): keep only the patterns that contain the target, oriented with the
+        # target increasing, once per orientation pair.
         temporal_patterns = []
+        seen = set()
         for gp in base_patterns:
+            tgt = [gi for gi in gp.gradual_items if gi.attribute_col == self.target_col]
+            if not tgt:
+                continue
+            flip = tgt[0].symbol == '-'
+            items = [GradualItem(gi.attribute_col, ('+' if gi.symbol == '-' else '-') if flip else gi.symbol)
+                     for gi in gp.gradual_items]
+            key = tuple(sorted((gi.attribute_col, gi.symbol) for gi in items))
+            if key in seen:
+                continue
+            seen.add(key)
             tgp = TemporalGradualPattern()
-            for gi in gp.gradual_items:
+            for gi in items:
                 tgp.add_gradual_item(gi)
             tgp.set_support(gp.support)
 
@@ -156,13 +170,7 @@ class TGrad(BaseAlgorithm):
                 if patterns:
                     all_patterns.extend(patterns)
 
-        unique_patterns = []
-        seen = set()
-        for tgp in all_patterns:
-            key = tuple(sorted((gi.attribute_col, gi.symbol) for gi in tgp.gradual_items))
-            if key not in seen:
-                seen.add(key)
-                unique_patterns.append(tgp)
-
-        logger.info(f"TGrad found {len(unique_patterns)} temporal patterns")
-        return unique_patterns
+        # As in the reference implementation, a pattern found at several time steps is reported at
+        # each of them, with the time lag of that step.
+        logger.info(f"TGrad found {len(all_patterns)} temporal patterns")
+        return all_patterns
