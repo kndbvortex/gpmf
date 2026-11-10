@@ -4,9 +4,9 @@ hide:
   - toc
 ---
 
-# GPMF — Gradual Pattern Mining Framework
+# GPMF: Gradual Pattern Mining Framework
 
-A unified Python library for gradual pattern mining with a scikit-learn-style API.
+GPMF finds gradual patterns in numerical data, rules such as "the more A increases, the more B decreases". It gathers the main mining algorithms of the literature behind one scikit-learn style interface, so comparing them takes one line.
 
 ## Installation
 
@@ -26,20 +26,20 @@ for p in patterns:
     print(p.to_string(), ":", p.support)
 ```
 
-## Available algorithms
+## Algorithms
 
-| Algorithm | Key | Category | Support |
-|-----------|-----|----------|---------|
-| [GRAANK](algorithms/graank.md) | `graank` | Core | Pair-based |
-| [GRITE](algorithms/grite.md) | `grite` | Core | Chain-based |
-| [SGrite](algorithms/sgrite.md) | `sgrite` | Core | Chain-based |
-| [ParaMiner](algorithms/paraminer.md) | `paraminer` | Closed | Chain-based |
-| [GLCM](algorithms/glcm.md) | `glcm` | Closed | Chain-based |
-| [PGLCM](algorithms/pglcm.md) | `pglcm` | Closed | Chain-based |
-| [ACO-GRAANK](algorithms/ant_graank.md) | `ant-graank` | Swarm | Pair-based |
-| [TGrad](algorithms/tgrad.md) | `tgrad` | Temporal | Pair-based |
-| [MSGP](algorithms/msgp.md) | `msgp` | Seasonal | Periodic |
-| [EmergingGP](algorithms/emerging_gp.md) | — | Contrast | Pair-based |
+| Algorithm | Key | Family | Support |
+|-----------|-----|--------|---------|
+| [GRAANK](algorithms/graank.md) | `graank` | Core | Pairs |
+| [GRITE](algorithms/grite.md) | `grite` | Core | Chains |
+| [SGrite](algorithms/sgrite.md) | `sgrite` | Core | Chains |
+| [ParaMiner](algorithms/paraminer.md) | `paraminer` | Closed | Chains |
+| [GLCM](algorithms/glcm.md) | `glcm` | Closed | Chains |
+| [PGLCM](algorithms/pglcm.md) | `pglcm` | Closed | Chains |
+| [ACO-GRAANK](algorithms/ant_graank.md) | `ant-graank` | Swarm | Pairs |
+| [TGrad](algorithms/tgrad.md) | `tgrad` | Temporal | Pairs |
+| [MSGP](algorithms/msgp.md) | `msgp` | Seasonal | Cycles |
+| [EmergingGP](algorithms/emerging_gp.md) | none (Python only) | Contrast | Pairs |
 
 [Get started](getting_started.md){ .md-button .md-button--primary }
 [Algorithm overview](algorithms/README.md){ .md-button }

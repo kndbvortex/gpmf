@@ -6,15 +6,15 @@
 pip install gradual-mining
 ```
 
-Pre-built wheels are available for Linux, macOS and Windows (x86_64 and arm64).
+Wheels are published for Linux, macOS and Windows (x86_64 and arm64).
 
 ## Basic usage
 
-All algorithms share the same fit/mine interface:
+All algorithms are used the same way:
 
 ```python
-from gpmf.algorithms.graank import GRAANK
 import pandas as pd
+from gpmf.algorithms.graank import GRAANK
 
 df = pd.read_csv("data.csv")
 
@@ -25,25 +25,27 @@ for p in patterns:
     print(p.to_string(), ":", p.support)
 ```
 
-You can also pass a CSV path directly:
+You can also give a CSV path directly:
 
 ```python
 patterns = GRAANK(min_support=0.5).mine("data.csv")
 ```
 
-## Choosing an algorithm
+GPMF works on the numeric columns. Date columns are recognised and left out of the mining (TGrad uses them to measure time lags). Numeric column labels are kept as attribute names, and your DataFrame is not modified.
 
-Two support families exist in GPMF. Pick based on which interpretation fits your task — see [Algorithms](algorithms/README.md) for the formal relationship.
+## Which algorithm?
 
-| I want... | Use |
-|-----------|-----|
-| Pair-based correlations (standard baseline) | GRAANK |
-| Longest ordered subsequence | GRITE or SGrite |
-| Closed patterns (compact output) | GLCM, PGLCM, or ParaMiner |
-| Large dataset, approximate result | ACO-GRAANK |
-| Temporal lag discovery | TGrad |
-| Seasonal / periodic patterns | MSGP |
-| Contrast two populations | EmergingGP |
+GPMF has two families of support, and their thresholds do not mean the same thing. The [algorithm overview](algorithms/README.md) explains how they relate.
+
+| You want | Use |
+|----------|-----|
+| The standard baseline, support counted on pairs of rows | GRAANK |
+| The longest chain of rows that follows the pattern | GRITE or SGrite |
+| A compact output with closed patterns only | GLCM, PGLCM or ParaMiner |
+| A fast approximate answer on a large dataset | ACO-GRAANK |
+| Co-variations that appear with a time lag | TGrad |
+| Co-variations that come back at every cycle | MSGP |
+| What distinguishes one dataset from another | EmergingGP |
 
 ## Working with results
 
@@ -52,13 +54,11 @@ result = algo.mine_and_get_result(df)
 
 print(result.algorithm)        # 'GRAANK'
 print(result.execution_time)   # seconds
-print(result.n_patterns)       # number of patterns found
+print(result.n_patterns)       # number of patterns
 
-# Filter and sort
 result.filter_by_support(0.7)
 result.sort_by_support()
 
-# Export
 result.to_csv("patterns.csv")
 result.to_json("patterns.json")
 ```
@@ -68,15 +68,18 @@ result.to_json("patterns.json")
 ```python
 from gpmf.datasets import load_example, load_air_quality
 
-df = load_example()        # 4-row toy dataset
-df = load_air_quality()    # UCI Air Quality
+df = load_example()        # a toy dataset of four rows
+df = load_air_quality()    # the UCI Air Quality dataset
 ```
 
-## CLI
+## Command line
 
 ```bash
-gradual-mine --list                               # list available algorithms
+gradual-mine --list                                    # list the algorithms
 gradual-mine graank data.csv --min-support 0.5
 gradual-mine paraminer data.csv --min-support 0.5 --n-jobs 4
-gradual-mine msgp data.csv --min-support 0.5 --cycle-size 12
+gradual-mine sgrite data.csv --min-support 0.3 --use-rc-pruning
+gradual-mine graank data.csv --min-support 0.5 --maximal
 ```
+
+The command line covers the options shared by all algorithms. Algorithm-specific settings, such as the cycle size of MSGP, are set from Python.

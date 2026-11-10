@@ -1,84 +1,88 @@
 # ParaMiner
 
-Generic parallel algorithm for mining closed frequent gradual patterns using a closure operator and EL-reduction for dataset compression.
+A generic parallel miner of closed frequent patterns, here applied to gradual patterns.
 
 ## Overview
 
-ParaMiner is a depth-first closed pattern miner built on the theory of strongly accessible set systems. Its core contribution is a novel dataset reduction technique (EL-reduction) that shrinks the working dataset at each node of the search tree, combined with a parallel execution strategy that distributes independent subtrees across CPU cores without synchronisation.
+ParaMiner explores the pattern space depth-first and jumps from one closed pattern to the next with a closure operator. At every node it shrinks the dataset it works on (EL-reduction), so deeper nodes cost less. Independent subtrees are spread across cores without any locking.
 
-Applied to gradual patterns, ParaMiner provides formal soundness and completeness guarantees: it returns exactly the set of closed frequent gradual patterns and nothing else. Mining time is linear in the number of closed patterns. An optional Rust extension compiled via PyO3 provides approximately a 10× speedup over the pure Python implementation on large datasets.
+For gradual patterns, ParaMiner is sound and complete: it returns exactly the closed frequent patterns. GPMF ships a Rust version, compiled into the wheel, and a pure Python version used when the extension is missing. In the Rust version, the transaction sets are stored as bitsets and the candidate tests of a node run in parallel. Both versions support Row-Column pruning.
 
-ParaMiner uses the same chain-based (gradual) support as GRITE and SGrite. It is the most efficient closed gradual pattern miner in GPMF.
+ParaMiner counts support on chains, like GRITE and SGrite.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum chain-based support. Must satisfy 0 < min_support ≤ 1.
+    Minimum chain support, with 0 < min_support ≤ 1.
 
 **use_rust** : bool, default=True
-    Use the Rust extension if available. Falls back to pure Python automatically if the extension is not installed.
+    Use the Rust extension when it is available, and fall back to Python otherwise.
 
-**num_threads** : int, default=1
-    Number of parallel threads. Effective only when `use_rust=True`.
+**num_threads** : int or None, default=None
+    Number of threads of the Rust version. `None` lets the extension choose.
 
-## Support definition
+**use_rc_pruning** : bool, default=False
+    Apply Row-Column pruning when computing supports. The result does not change.
 
-Chain-based (gradual support):
+**verbose** : bool, default=False
+    Print progress information.
+
+## Support
+
+Support on chains, with a strict order where ties are broken by the row index, as in the original ParaMiner implementation:
 
 ```
-supp(P) = max{ |T*| : T* ⊆ T, T* totally ordered by P } / |T|
+supp(P) = max{ |T*| : T* is a subset of T totally ordered by P }
 ```
 
-## Examples
+ParaMiner reports this support as a number of rows. Divide it by the number of rows to compare it with the other chain miners.
+
+## Example
 
 ```python
->>> from gpmf.algorithms.closed.paraminer_algorithm import ParaMiner
->>> import pandas as pd
->>> df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [2, 3, 4, 5]})
->>> algo = ParaMiner(min_support=0.5, use_rust=False)
->>> patterns = algo.fit(df).get_patterns()
+import pandas as pd
+from gpmf.algorithms.closed.paraminer_algorithm import ParaMiner
+
+df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [2, 3, 4, 5]})
+
+for p in ParaMiner(min_support=0.5, num_threads=4).fit(df).get_patterns():
+    print(p.to_string(), p.support)
+# ['0+', '1-', '2+'] 4
+# ['1+', '2-'] 4
 ```
 
-With Rust acceleration:
+To force the Python version, pass `use_rust=False`. To check that the extension is installed:
 
 ```python
->>> algo = ParaMiner(min_support=0.5, use_rust=True, num_threads=4)
->>> patterns = algo.fit(df).get_patterns()
+from gpmf.algorithms.closed.paraminer import RUST_AVAILABLE
+print(RUST_AVAILABLE)
 ```
 
-Check Rust availability:
-
-```python
->>> from gpmf.algorithms.closed.paraminer import RUST_AVAILABLE
->>> print(RUST_AVAILABLE)
-True
-```
-
-Via CLI:
+From the command line:
 
 ```bash
 gradual-mine paraminer data.csv --min-support 0.5 --n-jobs 4
+gradual-mine paraminer data.csv --min-support 0.5 --use-rc-pruning
 ```
 
 ## Notes
 
-**Closed patterns** are patterns where no strict super-pattern has the same support. They form a compact lossless representation of the full frequent pattern set.
+A pattern is closed when no larger pattern has the same support. The closed patterns are a compact and lossless summary of all frequent patterns.
 
-The Rust extension is compiled at build time via Maturin with `abi3-py39` for broad wheel compatibility. If it is absent, the Python fallback is used transparently.
+The extension is built with maturin for the `abi3-py39` target, so one wheel works for every Python version from 3.9.
 
-Thread efficiency depends on the number of independent subtrees, which is bounded by the number of attributes.
+Because ties are broken by the row index, reordering the rows of a dataset with ties can change the result. On data without ties this does not happen.
 
-## See Also
+## See also
 
-[GLCM](glcm.md)
-    Faster than ParaMiner on single-core for medium-sized datasets.
+[GLCM](glcm.md): closed patterns on a single core.
 
-[PGLCM](pglcm.md)
-    Parallel GLCM; an alternative multi-core closed pattern miner.
+[PGLCM](pglcm.md): closed patterns on several cores, in pure Python.
 
-[SGrite](sgrite.md)
-    Non-closed miner using the same chain-based support.
+[SGrite](sgrite.md): all frequent patterns with chain support.
 
 ## References
 
-[1] Negrevergne, B., Termier, A., Rousset, M.-C., & Mehaut, J.-F. (2014). ParaMiner: A Generic Pattern Mining Algorithm for Multi-Core Architectures. *Data Mining and Knowledge Discovery*, 28(3), 593–633. https://doi.org/10.1007/s10618-013-0313-2
+[1] Negrevergne, B., Termier, A., Rousset, M.-C., & Méhaut, J.-F. (2014). ParaMiner: A Generic Pattern Mining Algorithm for Multi-Core Architectures. *Data Mining and Knowledge Discovery*, 28(3), 593-633. https://doi.org/10.1007/s10618-013-0313-2
+
+[2] Kamga Nguifo, D., Lonlac, J., Fleury, A., & Mephu Nguifo, E. (2025). Mining Faster, Not Harder: A New Criterion for Gradual Pattern Mining. *IEEE International Conference on Fuzzy Systems (FUZZ-IEEE 2025)*, 1-6. https://doi.org/10.1109/FUZZ62266.2025.11152072

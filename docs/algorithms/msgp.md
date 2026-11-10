@@ -1,70 +1,80 @@
 # MSGP
 
-Mining Seasonal Gradual Patterns. Discovers gradual patterns that recur periodically across seasons or cycles.
+Seasonal gradual patterns: co-variations that come back at every cycle, such as each day or each year.
 
 ## Overview
 
-MSGP combines gradual pattern extraction with periodic pattern mining. It splits the dataset into cycles of fixed size, computes which gradual patterns hold within each cycle, and then uses SPMF's MPFPS-BFS algorithm to identify patterns that recur with bounded periodicity across cycles. The result is a set of gradual patterns annotated with their seasonal regularity.
+MSGP (Mining Seasonal Gradual Patterns) cuts the series into consecutive cycles of fixed length. Each cycle becomes one sequence: its k-th element holds the gradual items that hold between observations k and k + 1 of the cycle. A periodic pattern miner from SPMF (MPFPS-BFS) then looks for itemsets that are periodic inside many of these sequences. The result is a set of gradual patterns that recur at the same moments of the cycle.
 
-A typical use case is monthly sensor data: MSGP can discover that "when temperature increases, humidity decreases" holds every summer with high regularity, but not in winter.
+A typical use is hourly sensor data with a daily cycle: MSGP can find that "temperature rises while humidity falls" holds every morning in most days.
 
-MSGP is the only algorithm in GPMF that requires an external Java dependency (SPMF).
+MSGP is the only algorithm of GPMF that needs Java, through SPMF.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum within-cycle support threshold.
+    Seasonal support: the share of cycles in which the pattern must be periodic. A value above 1 is read as a number of cycles.
 
 **cycle_size** : int, default=8
-    Number of rows per cycle. Should divide the dataset length evenly; incomplete trailing cycles are discarded.
+    Number of observations in one cycle. An incomplete last cycle is dropped, and the transition between two cycles is not used.
 
 **min_ra** : float or None, default=None
-    Minimum ratio of cycles in which the pattern must appear. `None` computes a default from the dataset size and `cycle_size`.
+    Share of the transitions of a cycle on which the pattern must hold for it to count as periodic in that cycle. `None` means 0.5.
 
 **max_periodicity** : int or None, default=None
-    Maximum gap (in cycles) between two consecutive occurrences. `None` defaults to the total number of cycles.
+    Largest gap allowed between two occurrences inside a cycle. `None` means the cycle size.
 
-**max_std** : float or None, default=None
-    Maximum standard deviation of the inter-occurrence gap. `None` defaults to the dataset size.
+**max_std** : int or None, default=None
+    Largest standard deviation allowed for these gaps. `None` means the cycle size.
 
-## Support definition
+**spmf_path** : str or None, default=None
+    Path to `spmf.jar`. When it is not given, GPMF uses the configuration or the `SPMF_PATH` environment variable.
 
-Periodic support: a pattern is included if it appears in at least `min_ra` of the observed cycles with inter-occurrence gap ≤ `max_periodicity` and gap standard deviation ≤ `max_std`.
+## Support
 
-## Examples
+A pattern is periodic in a cycle when it occurs on at least `min_ra` × (cycle_size - 1) transitions of that cycle, with gaps of at most `max_periodicity` and a gap standard deviation of at most `max_std`. Its support is the share of cycles in which it is periodic, and it is kept when that share reaches `min_support`.
+
+In MSGP, "rise together" and "fall together" are different patterns, because the moment of the cycle matters.
+
+## Example
 
 ```python
->>> from gpmf.algorithms.seasonal.msgp import MSGP
->>> import pandas as pd
->>> df = pd.read_csv('monthly_measurements.csv')   # 36 rows, 12-month cycle
->>> algo = MSGP(min_support=0.5, cycle_size=12)
->>> patterns = algo.fit(df).get_patterns()
->>> for p in patterns:
-...     print(p.to_string(), p.support)
+import pandas as pd
+from gpmf.algorithms.seasonal.msgp import MSGP
+
+df = pd.read_csv('hourly_measurements.csv')   # one row per hour
+algo = MSGP(min_support=0.5, cycle_size=24, spmf_path='/path/to/spmf.jar')
+
+for p in algo.fit(df).get_patterns():
+    print(p.to_string(), p.support)
 ```
 
-Via CLI:
+## Installing SPMF
+
+MSGP calls SPMF through the `spmf` Python package and needs Java:
 
 ```bash
-gradual-mine msgp data.csv --min-support 0.5 --cycle-size 12
+pip install spmf
 ```
 
-## Notes
-
-MSGP requires SPMF to be installed and its JAR path configured:
+Download `spmf.jar` from the [SPMF website](https://www.philippe-fournier-viger.com/spmf/), then give its path in one of three ways:
 
 ```python
->>> from gpmf.config import config
->>> config.spmf_path = '/path/to/spmf.jar'
+algo = MSGP(min_support=0.5, cycle_size=24, spmf_path='/path/to/spmf.jar')
+
+# or once for the session
+from gpmf.config import config
+config.spmf_path = '/path/to/spmf.jar'
 ```
 
-Download SPMF from the [SPMF website](https://www.philippe-fournier-viger.com/spmf/).
+or set the `SPMF_PATH` environment variable. Recent SPMF releases need a recent Java runtime; check the SPMF website for the version.
 
-## See Also
+The command line does not expose `cycle_size`: use MSGP from Python.
 
-[TGrad](tgrad.md)
-    Alternative for datasets where the temporal lag is unknown and must be discovered.
+## See also
 
-## References
+[TGrad](tgrad.md): when the delay between attributes is unknown and has to be found.
 
-[1] Lonlac, J., Doniec, A., Lujak, M., & Lecoeuche, S. (2020). Mining Frequent Seasonal Gradual Patterns. *Advances in Intelligent Data Analysis XIX*, DaWaK 2020, LNCS 12393, 197–207. https://doi.org/10.1007/978-3-030-59065-9_16
+## Reference
+
+[1] Lonlac, J., Doniec, A., Lujak, M., & Lecoeuche, S. (2020). Mining Frequent Seasonal Gradual Patterns. *Big Data Analytics and Knowledge Discovery (DaWaK 2020)*, LNCS 12393, 197-207. https://doi.org/10.1007/978-3-030-59065-9_16

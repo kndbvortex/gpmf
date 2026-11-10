@@ -1,6 +1,6 @@
-# GPMF — Gradual Pattern Mining Framework
+# GPMF: Gradual Pattern Mining Framework
 
-A Python library for gradual pattern mining with a unified scikit-learn-style API.
+GPMF is a Python library for mining gradual patterns, rules such as "the more A increases, the more B decreases". It brings the main algorithms of the literature under one scikit-learn style interface, so you can switch from one to another by changing a single line.
 
 ## Installation
 
@@ -8,7 +8,7 @@ A Python library for gradual pattern mining with a unified scikit-learn-style AP
 pip install gradual-mining
 ```
 
-Pre-built wheels are available for Linux, macOS and Windows (x86_64 and arm64). The ParaMiner algorithm includes an optional Rust extension for multi-core acceleration — it is compiled into the wheel automatically and falls back to a pure-Python implementation if unavailable.
+Wheels are published for Linux, macOS and Windows (x86_64 and arm64). ParaMiner comes with a Rust extension that is compiled into the wheel. If the extension cannot be loaded, GPMF falls back to the pure Python version on its own.
 
 ## Quick start
 
@@ -22,15 +22,17 @@ for p in patterns:
     print(p.to_string(), ":", p.support)
 ```
 
-All algorithms share the same interface:
+Every algorithm has the same interface:
 
 ```python
-model.fit(data)              # data can be a CSV path, DataFrame, or GradualDataset
+model.fit(data)                # a CSV path, a pandas DataFrame or a GradualDataset
 patterns = model.get_patterns()
-result   = model.get_result()  # includes execution time, metadata
+result = model.get_result()    # patterns plus execution time and metadata
 ```
 
-### ParaMiner with Rust acceleration
+Date columns are detected and left out of the mining. Numeric column labels are kept as attribute names, and the DataFrame you pass in is never modified.
+
+### ParaMiner with the Rust extension
 
 ```python
 from gpmf.algorithms.closed.paraminer_algorithm import ParaMiner
@@ -39,58 +41,62 @@ model = ParaMiner(min_support=0.5, use_rust=True, num_threads=4)
 patterns = model.mine("data.csv")
 ```
 
-## Available algorithms
+## Algorithms
 
 | Algorithm | Key | Authors | Reference |
 |-----------|-----|---------|-----------|
-| **GRAANK** | `graank` | Laurent, Lesot & Rifqi (2010) | [paper](https://www.lirmm.fr/~laurent/POLYTECH/IG4/DM/RessourcesProjet/LaurentLesotRifqi.pdf) |
-| **GRITE** | `grite` | Di-Jorio, Laurent & Teisseire (2009) | [paper](https://hal.inrae.fr/hal-02592797v1) |
+| **GRAANK** | `graank` | Laurent, Lesot & Rifqi (2009) | [paper](https://doi.org/10.1007/978-3-642-04957-6_33) |
+| **GRITE** | `grite` | Di-Jorio, Laurent & Teisseire (2009) | [paper](https://doi.org/10.1007/978-3-642-03915-7_26) |
 | **SGrite** | `sgrite` / `sgopt` / `sg1` / `sgb1` / `sgb2` | Tayou Djamegni, Tabueu Fotso & Kenmogne (2021) | [paper](https://doi.org/10.1016/j.mlwa.2021.100068) |
-| **ParaMiner** | `paraminer` | Négrevergne, Termier, Rousset & Méhaut (2014) | [paper](https://doi.org/10.1007/s10618-013-0313-2) |
+| **ParaMiner** | `paraminer` | Negrevergne, Termier, Rousset & Méhaut (2014) | [paper](https://doi.org/10.1007/s10618-013-0313-2) |
 | **ACO-GRAANK** | `ant-graank` | Owuor, Runkler, Laurent, Orero & Menya (2021) | [paper](https://doi.org/10.1007/s13042-021-01390-w) |
 | **TGrad** | `tgrad` | Owuor, Laurent & Orero (2019) | [paper](https://doi.org/10.1109/FUZZ-IEEE.2019.8858883) |
 | **MSGP** | `msgp` | Lonlac, Doniec, Lujak & Lecoeuche (2020) | [paper](https://doi.org/10.1007/978-3-030-59065-9_16) |
-| **GLCM** | `glcm` | Do, Termier, Laurent et al. (2015) | [paper](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1) |
-| **PGLCM** | `pglcm` | Do, Termier, Laurent et al. (2015) | [paper](https://hal-lirmm.ccsd.cnrs.fr/lirmm-01381085v1) |
+| **GLCM** | `glcm` | Do, Termier, Laurent et al. (2015) | [paper](https://doi.org/10.1007/s10115-014-0749-8) |
+| **PGLCM** | `pglcm` | Do, Termier, Laurent et al. (2015) | [paper](https://doi.org/10.1007/s10115-014-0749-8) |
 
-### Pruning criterion
+### Row-Column pruning
 
-| Criterion | Applies to | Authors |
-|-----------|-----------|---------|
-| Row–Column pruning (`--use-rc-pruning`) | GRITE, SGrite (all variants), GLCM, PGLCM, ParaMiner | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025) — [paper](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
+| Criterion | Works with | Authors |
+|-----------|------------|---------|
+| Row-Column pruning (`--use-rc-pruning`) | GRITE, SGrite (all variants), GLCM, PGLCM, ParaMiner (Python and Rust) | Kamga Nguifo, Lonlac, Fleury & Mephu Nguifo (2025), [paper](https://doi.org/10.1109/FUZZ62266.2025.11152072) |
 
-## CLI
+The pruning removes, before the longest path is computed, the rows and columns of a precedence matrix that cannot belong to a chain long enough to reach the support threshold. The patterns and their supports stay the same; only the work shrinks.
+
+## Command line
 
 ```bash
-# List available algorithms
+# list the algorithms
 gradual-mine --list
 
-# Mine patterns
+# mine patterns
 gradual-mine graank data.csv --min-support 0.5
 
-# Save results
+# save the results
 gradual-mine graank data.csv --min-support 0.5 --output results.json --csv results.csv
 
-# Parallel execution
+# run on several cores
 gradual-mine paraminer data.csv --min-support 0.5 --n-jobs -1
 
-# Row–Column pruning (refused by algorithms that do not support it)
+# Row-Column pruning (algorithms that do not support it refuse the option)
 gradual-mine sgrite data.csv --min-support 0.3 --use-rc-pruning
 
-# Maximal patterns only (GRAANK)
+# maximal patterns only (GRAANK)
 gradual-mine graank data.csv --min-support 0.5 --maximal
 ```
+
+Parameters that are specific to one algorithm, such as the cycle size of MSGP or the target column of TGrad, are set from Python.
 
 ## Development
 
 ```bash
-git clone https://github.com/your-org/gpmf
+git clone https://github.com/kndbvortex/gpmf
 cd gpmf
 uv sync --dev
 uv run pytest
 ```
 
-To build with the Rust extension locally:
+To build the Rust extension locally:
 
 ```bash
 pip install maturin

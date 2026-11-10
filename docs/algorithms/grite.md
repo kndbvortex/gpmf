@@ -1,63 +1,71 @@
 # GRITE
 
-Precedence-graph approach to gradual pattern mining that measures support via the longest ordered subsequence.
+Gradual pattern mining with precedence graphs, where support is the longest chain of rows.
 
 ## Overview
 
-GRITE (GRadual ITEms) represents attribute orderings as directed acyclic graphs and computes pattern support as the length of the longest path through each graph. Unlike GRAANK, which counts all valid pairs, GRITE asks for the longest chain of objects that can be totally ordered according to the pattern. This chain-based view scales better to dense, nearly-sorted data and avoids enumerating all O(n²) pairs.
+GRITE (GRadual ITEmset) represents each pattern as a precedence graph between rows and measures support as the longest path in that graph. Where GRAANK counts every pair of rows that goes in the right direction, GRITE asks how many rows can be lined up in one order that respects the pattern.
 
-The support definition in GRITE is fundamentally different from GRAANK's. The two measures cannot be compared at the same threshold value. Use GRITE when the chain interpretation is appropriate for your task, or when pair-based algorithms run out of memory.
+The two supports are different measures, so their thresholds cannot be compared (see [the overview](README.md)). GRITE is the natural choice when the chain reading fits your question, or when the pair matrices of GRAANK do not fit in memory.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum chain length relative to n−1. Must satisfy 0 < min_support ≤ 1. A value of 1.0 requires all n objects to be totally ordered by the pattern.
+    Minimum length of the longest chain, as a share of the number of rows, with 0 < min_support ≤ 1. A value of 1.0 asks for every row to be ordered by the pattern.
 
-## Support definition
+**use_rc_pruning** : bool, default=False
+    Apply Row-Column pruning before computing the longest path. The patterns and supports do not change; the graphs get smaller.
 
-Chain-based. For a dataset of n objects, build a DAG where i→j exists if all items of P are satisfied by (oi, oj). Then:
+**n_jobs** : int, default=1
+    Accepted for a uniform interface. GRITE runs on one core.
+
+## Support
+
+Support on chains. Build the graph where i → j when the pair (o_i, o_j) respects every item of P (with a non-strict order: ties are allowed). Then:
 
 ```
-supp(P) = length_of_longest_path(DAG_P) / (n − 1)
+supp(P) = number of rows on the longest path of the graph / n
 ```
 
-This is not comparable to pair-based support. Asymptotically, `supp_pair(P) ≥ supp_chain(P)²`, but no exact equivalence exists in general.
-
-## Examples
+## Example
 
 ```python
->>> from gpmf.algorithms.grite import GRITE
->>> import pandas as pd
->>> df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1]})
->>> algo = GRITE(min_support=0.5)
->>> patterns = algo.fit(df).get_patterns()
->>> for p in patterns:
-...     print(p.to_string(), p.support)
+import pandas as pd
+from gpmf.algorithms.grite import GRITE
+
+df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [1, 3, 2, 4]})
+
+for p in GRITE(min_support=0.5).fit(df).get_patterns():
+    print(p.to_string(), p.support)
+# ['0+', '1-'] 1.0
+# ['0-', '1+'] 1.0
+# ['0+', '2+'] 0.75
+# and the other frequent patterns, in both orientations
 ```
 
-Via CLI:
+From the command line:
 
 ```bash
 gradual-mine grite data.csv --min-support 0.5
+gradual-mine grite data.csv --min-support 0.5 --use-rc-pruning
 ```
 
 ## Notes
 
-The `path` attribute of each returned `GradualPattern` stores the row indices forming the longest chain.
+Each returned pattern has a `path` attribute with the row indices of its longest chain.
 
-GRITE may produce fewer or different patterns than GRAANK at the same numerical threshold, because the two support measures rank patterns differently. For an improved implementation of the same chain-based measure, prefer SGrite.
+At the same numerical threshold, GRITE and GRAANK can return different patterns, because the two supports rank patterns differently. SGrite computes the same kind of support faster, with a strict order instead of a non-strict one.
 
-## See Also
+## See also
 
-[SGrite](sgrite.md)
-    Faster drop-in replacement for GRITE using a single DAG sweep.
+[SGrite](sgrite.md): a faster algorithm for chain support.
 
-[GRAANK](graank.md)
-    Pair-based alternative with a different support definition.
+[GRAANK](graank.md): the same task with support counted on pairs.
 
-[GLCM](glcm.md)
-    Closed-pattern miner using the same chain-based support.
+[GLCM](glcm.md): closed patterns with the same support and the same tie convention.
 
 ## References
 
-[1] Di-Jorio, L., Laurent, A., & Teisseire, M. (2009). Mining Frequent Gradual Itemsets from Large Databases. *Advances in Intelligent Data Analysis VIII*, IDA 2009, LNCS 5772. https://doi.org/10.1007/978-3-642-03915-7_15
+[1] Di-Jorio, L., Laurent, A., & Teisseire, M. (2009). Mining Frequent Gradual Itemsets from Large Databases. *Advances in Intelligent Data Analysis VIII (IDA 2009)*, LNCS 5772, 297-308. https://doi.org/10.1007/978-3-642-03915-7_26
+
+[2] Kamga Nguifo, D., Lonlac, J., Fleury, A., & Mephu Nguifo, E. (2025). Mining Faster, Not Harder: A New Criterion for Gradual Pattern Mining. *IEEE International Conference on Fuzzy Systems (FUZZ-IEEE 2025)*, 1-6. https://doi.org/10.1109/FUZZ62266.2025.11152072

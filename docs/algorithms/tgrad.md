@@ -1,78 +1,76 @@
 # TGrad
 
-Temporal extension of GRAANK that discovers gradual patterns with a fuzzy time lag between co-varying attributes.
+Gradual patterns with a time lag: "the more A, the less B, about one month later".
 
 ## Overview
 
-TGrad (Temporal Gradual patterns) addresses datasets where co-variations between attributes are not simultaneous but delayed. It transforms the dataset by pairing each observation with the observation recorded `s` time steps later, then runs GRAANK on each transformed version. Patterns that survive across multiple time steps are assigned a fuzzy time lag and a representativeness score measuring their stability over time.
+TGrad (Temporal Gradual patterns, also called T-GRAANK) looks for co-variations that are delayed rather than simultaneous. For a time step s, it pairs each value of the target attribute with the values of the other attributes s rows later, and runs GRAANK on this shifted table. It repeats this for every step. A pattern found at a step gets a fuzzy time lag, computed from the time differences between the paired rows.
 
-A typical output pattern reads: "the more exercise, the less stress approximately one month later."
+A typical result reads: "the more exercise, the less stress, about one month later".
 
-TGrad requires at least one datetime column in the dataset to derive time differences. If no datetime column is present, no temporal transformation is applied.
+TGrad needs a time column to measure the lags. GPMF detects it on its own, and it can hold numbers or date strings such as `2021-01-31`. Without a time column, no lag is computed.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum pair-based support within each transformed dataset. Must satisfy 0 < min_support ≤ 1.
+    Minimum support on pairs in each shifted table, with 0 < min_support ≤ 1.
 
 **target_col** : int, default=0
-    Index of the datetime column in the dataset. Used to compute time differences between rows.
+    Index of the target attribute, counting every column of the data, the time column included. The target keeps its own rows and the other attributes are shifted. Every pattern contains the target.
 
 **min_rep** : float, default=0.5
-    Minimum representativeness. A pattern must hold at this fraction of evaluated time steps to be included in the output.
+    Minimum representativeness, which bounds how many steps are tried: a step s is used while the shifted table still holds at least this share of the rows.
 
 **n_jobs** : int, default=1
-    Number of parallel workers for evaluating time steps.
+    Number of worker processes used to evaluate the steps.
 
-## Support definition
+## Support
 
-Pair-based, evaluated on temporally shifted pairs:
+Support on pairs, computed on the table shifted by s steps:
 
 ```
-supp(P, step) = pair-based support of P on the dataset shifted by `step` time units
+supp(P, s) = support on pairs of P in the table where the attributes other than the target are shifted by s rows
 ```
 
-## Examples
+## Example
 
 ```python
->>> from gpmf.algorithms.temporal.tgrad import TGrad
->>> import pandas as pd
->>> df = pd.DataFrame({
-...     'date': pd.to_datetime(['2021-01-01', '2021-01-02', '2021-01-03',
-...                             '2021-01-04', '2021-01-05']),
-...     'A': [1, 2, 3, 4, 5],
-...     'B': [5, 4, 3, 2, 1],
-... })
->>> algo = TGrad(min_support=0.5, target_col=0, min_rep=0.5)
->>> patterns = algo.fit(df).get_patterns()
->>> for p in patterns:
-...     print(p)
+import pandas as pd
+from gpmf.algorithms.temporal.tgrad import TGrad
+
+df = pd.DataFrame({
+    'date': ['2021-01-01', '2021-01-02', '2021-01-03', '2021-01-04', '2021-01-05', '2021-01-06'],
+    'A': [1, 2, 3, 4, 5, 6],
+    'B': [6, 5, 4, 3, 2, 1],
+    'C': [1, 3, 2, 5, 4, 6],
+})
+
+for p in TGrad(min_support=0.5, target_col=1, min_rep=0.5).fit(df).get_patterns():
+    print(p.to_string(), p.support, [lag.to_string() for lag in p.time_lags])
+# ['2-', '1+'] 1.0 ['~86400.0']
+# and the other patterns, one line per pattern and time step
 ```
 
-Via CLI:
-
-```bash
-gradual-mine tgrad data.csv --min-support 0.5 --target-col 0
-```
+Here column 1 (`A`) is the target, and every pattern contains `1+`. The lag `~86400.0` is one day, in seconds. The order of the items inside a pattern can change from one run to the next.
 
 ## Output
 
-Returns `TemporalGradualPattern` objects extending `GradualPattern` with a list of `TimeLag` instances. Each `TimeLag` carries a `timestamp`, a `support`, and a direction `sign` (`+`, `-`, or `~`).
+TGrad returns `TemporalGradualPattern` objects. They extend `GradualPattern` with a list of `TimeLag` objects, each with a `timestamp` (in the unit of the time column, seconds for dates), a `support` and a `sign` (`+`, `-` or `~` for "about").
+
+A pattern is reported relative to the target and once per time step where it is frequent, so the same items can appear with several lags.
 
 ## Notes
 
-`min_rep` controls pattern stability: a pattern that holds only at one specific lag receives low representativeness and is filtered out if `min_rep` is above the corresponding threshold.
+The command line does not expose `target_col`: use TGrad from Python.
 
-`n_jobs > 1` parallelises evaluation across time steps and scales linearly with the number of distinct lags.
+Setting `n_jobs` above 1 evaluates the steps in parallel. It pays off when there are many steps to try.
 
-## See Also
+## See also
 
-[GRAANK](graank.md)
-    Non-temporal baseline that TGrad extends.
+[GRAANK](graank.md): the algorithm TGrad runs on each shifted table.
 
-[MSGP](msgp.md)
-    Alternative for datasets with a known periodic structure.
+[MSGP](msgp.md): for data with a known cycle, such as days or years.
 
-## References
+## Reference
 
-[1] Owuor, D., Laurent, A., & Orero, J. (2019). Mining Fuzzy-Temporal Gradual Patterns. *IEEE International Conference on Fuzzy Systems (FUZZ-IEEE 2019)*. https://doi.org/10.1109/FUZZ-IEEE.2019.8858883
+[1] Owuor, D., Laurent, A., & Orero, J. (2019). Mining Fuzzy-Temporal Gradual Patterns. *IEEE International Conference on Fuzzy Systems (FUZZ-IEEE 2019)*, 1-6. https://doi.org/10.1109/FUZZ-IEEE.2019.8858883

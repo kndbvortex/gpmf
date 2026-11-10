@@ -1,87 +1,80 @@
 # SGrite
 
-Improved GRITE using a single bottom-up DAG sweep with Lemma 1 symmetry pruning.
+A faster GRITE: one bottom-up sweep of the graph, and a symmetry lemma that halves the search.
 
 ## Overview
 
-SGrite (Simplified GRITE) replaces GRITE's multiple-pass graph processing with a single bottom-up sweep, and exploits a symmetry lemma to halve the search space. It offers four variants that trade DFS against BFS traversal and two support algorithms against each other. In all configurations, SGrite is strictly faster than GRITE on the same data while producing identical or more compact results.
+SGrite (Simplified GRITE) replaces the several passes of GRITE over the precedence graph with a single bottom-up sweep. It also uses a symmetry lemma: a pattern and its complement have the same support, so only one of the two needs to be processed. The four variants combine a depth-first or breadth-first traversal with one of two support algorithms.
 
-`sgb1` is the recommended default. It combines DFS traversal with Algorithm 3 (which applies Lemma 1 to skip complement patterns) and delivers the best overall performance in the original evaluation.
+`sgb1` is the default and the variant we recommend. It explores depth-first and applies the lemma, and it was the fastest in the original evaluation.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum chain-based support. Must satisfy 0 < min_support ≤ 1.
+    Minimum chain support, with 0 < min_support ≤ 1.
 
 **variant** : str, default='sgb1'
-    Algorithm variant. One of `'sgb1'`, `'sgb2'`, `'sgopt'`, `'sg1'`.
+    One of `'sgb1'`, `'sgb2'`, `'sgopt'`, `'sg1'`.
 
 **use_rc_pruning** : bool, default=False
-    Enable Row-Column pruning before longest-path computation. Reduces DAG size on datasets with many tied values. Compatible with all variants.
+    Apply Row-Column pruning before computing the longest path. It works with every variant and leaves the result unchanged.
 
 ### Variants
 
-| Key       | Traversal | Support algorithm                  |
-| --------- | --------- | ---------------------------------- |
-| `sgb1`  | DFS       | Algorithm 3 (Lemma 1), recommended |
-| `sgb2`  | BFS       | Algorithm 3 (Lemma 1)              |
-| `sgopt` | DFS       | Algorithm 2                        |
-| `sg1`   | BFS       | Algorithm 2                        |
+| Key | Traversal | Support algorithm |
+| --- | --------- | ----------------- |
+| `sgb1` | depth-first | Algorithm 3 (with the symmetry lemma), recommended |
+| `sgb2` | breadth-first | Algorithm 3 (with the symmetry lemma) |
+| `sgopt` | depth-first | Algorithm 2 |
+| `sg1` | breadth-first | Algorithm 2 |
 
-Algorithm 3 uses Lemma 1 to avoid processing a pattern when its complement has already been seen, halving the effective search space. Algorithm 2 explores the full space without this shortcut.
+Algorithm 3 skips a pattern when its complement has already been processed. Algorithm 2 explores both.
 
-## Support definition
+## Support
 
-Identical to GRITE:
+The same longest-chain support as GRITE, divided by the number of rows, but with a strict order: two rows with the same value do not follow each other.
 
 ```
-supp(P) = length_of_longest_path(DAG_P) / (n − 1)
+supp(P) = number of rows on the longest path of the graph / n
 ```
 
-## Examples
+## Example
 
 ```python
->>> from gpmf.algorithms.sgrite import SGrite
->>> import pandas as pd
->>> df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1]})
->>> algo = SGrite(min_support=0.5)
->>> patterns = algo.fit(df).get_patterns()
+import pandas as pd
+from gpmf.algorithms.sgrite import SGrite
+
+df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1]})
+patterns = SGrite(min_support=0.5).fit(df).get_patterns()
+
+# another variant, with Row-Column pruning
+patterns = SGrite(min_support=0.5, variant='sgopt', use_rc_pruning=True).fit(df).get_patterns()
 ```
 
-With explicit variant and RC pruning:
-
-```python
->>> algo = SGrite(min_support=0.5, variant='sgopt', use_rc_pruning=True)
->>> patterns = algo.fit(df).get_patterns()
-```
-
-Via CLI:
+From the command line:
 
 ```bash
 gradual-mine sgrite data.csv --min-support 0.5
-gradual-mine sgb1   data.csv --min-support 0.5
-gradual-mine sgopt  data.csv --min-support 0.5 --use-rc-pruning
+gradual-mine sgb1 data.csv --min-support 0.5
+gradual-mine sgopt data.csv --min-support 0.5 --use-rc-pruning
 ```
 
 ## Notes
 
-SGrite and GRITE share the same support definition. Results are directly comparable between the two algorithms.
+On data without ties, SGrite and GRITE give the same supports. With ties they can differ, since GRITE uses a non-strict order and SGrite a strict one.
 
-`sgb1` and `sgb2` may output fewer patterns than GRITE when Lemma 1 eliminates complement patterns. Both forms of a complementary pair carry equivalent information.
+`sgb1` and `sgb2` can return fewer patterns than GRITE because they keep one pattern of each complementary pair. Both forms carry the same information.
 
-RC pruning (`use_rc_pruning=True`) is independent of the chosen variant and provides additional speedups on data with frequent tied attribute values.
+Row-Column pruning helps most on large datasets where many rows cannot be part of a long enough chain.
 
-## See Also
+## See also
 
-[GRITE](grite.md)
-    Original algorithm that SGrite improves upon.
+[GRITE](grite.md): the algorithm SGrite improves on.
 
-[GLCM](glcm.md)
-    Closed-pattern miner using the same chain-based support.
+[GLCM](glcm.md): closed patterns with chain support.
 
 ## References
 
-[1] Tayou Djamegni, C., Tabueu Fotso Laurent, C., & Kenmogne Edith, B. (2021). A novel algorithm for extracting frequent gradual patterns. *Machine Learning with Applications*, 6, 100068. https://doi.org/10.1016/j.mlwa.2021.100068
+[1] Tayou Djamegni, C., Tabueu Fotso, L. C., & Kenmogne, E. B. (2021). A novel algorithm for extracting frequent gradual patterns. *Machine Learning with Applications*, 5, 100068. https://doi.org/10.1016/j.mlwa.2021.100068
 
-[2] Kamga Nguifo, E., Lonlac, J., Fleury, G., & Mephu Nguifo, E. (2025). Row-Column Pruning for Gradual Pattern Mining. *IEEE FUZZ 2025*.
-    https://doi.org/10.1109/FUZZ62266.2025.11152072
+[2] Kamga Nguifo, D., Lonlac, J., Fleury, A., & Mephu Nguifo, E. (2025). Mining Faster, Not Harder: A New Criterion for Gradual Pattern Mining. *IEEE International Conference on Fuzzy Systems (FUZZ-IEEE 2025)*, 1-6. https://doi.org/10.1109/FUZZ62266.2025.11152072

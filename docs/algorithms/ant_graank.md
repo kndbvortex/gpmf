@@ -1,43 +1,43 @@
 # ACO-GRAANK
 
-Ant Colony Optimisation heuristic for gradual pattern mining. Trades completeness for scalability on large datasets where exhaustive enumeration is impractical.
+Ant colony search for gradual patterns: faster than GRAANK on large problems, at the price of completeness.
 
 ## Overview
 
-ACO-GRAANK adapts the ant colony optimisation metaheuristic to the gradual pattern mining task. A population of ants constructs candidate patterns by probabilistically selecting gradual items according to pheromone intensities and a heuristic based on single-item support. High-support patterns reinforce the pheromone trails of their constituent items, guiding future ants toward promising regions of the search space. Pheromone evaporation introduces forgetting, preventing premature convergence.
+ACO-GRAANK replaces the exhaustive search of GRAANK with an ant colony. Each ant builds a candidate pattern by picking gradual items at random, with probabilities driven by pheromone levels. Patterns with a high support reinforce the pheromone of their items, which steers later ants towards promising regions. Evaporation slowly erases old trails so that the colony does not lock onto its first findings.
 
-Support is evaluated using the same bitmap mechanism as GRAANK, so support values are directly comparable between the two algorithms. ACO-GRAANK is the appropriate choice when bitmap memory is not the bottleneck but exhaustive candidate enumeration is too slow.
+Support is computed with the same bitmaps as GRAANK, so the supports of the two algorithms can be compared directly. ACO-GRAANK is useful when the number of candidates makes the exhaustive search too slow.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum pair-based support threshold. Must satisfy 0 < min_support ≤ 1.
+    Minimum support on pairs, with 0 < min_support ≤ 1.
 
 **max_iter** : int, default=10
-    Number of ACO iterations. More iterations improve recall at the cost of runtime.
+    Number of iterations of the colony. More iterations find more patterns and take longer.
 
 **evaporation_factor** : float, default=0.5
-    Pheromone evaporation rate ρ. Must satisfy 0 < evaporation_factor < 1. Lower values favour exploitation of known good patterns; higher values favour exploration.
+    Pheromone evaporation rate, strictly between 0 and 1. A low value keeps exploiting the trails already found; a high value explores more.
 
-## Support definition
+## Support
 
-Pair-based, identical to GRAANK:
+Support on pairs, as in GRAANK:
 
 ```
-supp(P) = |{(i,j) : i<j, all items of P satisfied by (oi, oj)}| / C(n, 2)
+supp(P) = |{(i, j) : i < j, the pair (o_i, o_j) respects every item of P}| / C(n, 2)
 ```
 
-## Examples
+## Example
 
 ```python
->>> from gpmf.algorithms.swarm.ant_graank import AntGRAANK
->>> import pandas as pd
->>> df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [1, 2, 3, 4]})
->>> algo = AntGRAANK(min_support=0.5, max_iter=20, evaporation_factor=0.3)
->>> patterns = algo.fit(df).get_patterns()
+import pandas as pd
+from gpmf.algorithms.swarm.ant_graank import AntGRAANK
+
+df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [1, 2, 3, 4]})
+patterns = AntGRAANK(min_support=0.5, max_iter=20, evaporation_factor=0.3).fit(df).get_patterns()
 ```
 
-Via CLI:
+From the command line:
 
 ```bash
 gradual-mine ant-graank data.csv --min-support 0.5
@@ -45,15 +45,12 @@ gradual-mine ant-graank data.csv --min-support 0.5
 
 ## Notes
 
-ACO-GRAANK is **not complete**: it may miss frequent patterns, especially in high-dimensional spaces with many infrequent items. Increasing `max_iter` improves recall.
+ACO-GRAANK is not complete: it can miss frequent patterns, especially when there are many attributes and many infrequent items. Raising `max_iter` helps. Since the search is random, two runs can return different sets.
 
-Support values produced by ACO-GRAANK are directly comparable to GRAANK output, since both use the pair-based measure.
+## See also
 
-## See Also
+[GRAANK](graank.md): the exact search with the same support.
 
-[GRAANK](graank.md)
-    Exact exhaustive version with the same support definition.
+## Reference
 
-## References
-
-[1] Owuor, D. O., Runkler, T., Laurent, A., Orero, J. O., & Menya, E. O. (2021). Ant colony optimization for mining gradual patterns. *International Journal of Machine Learning and Cybernetics*, 12, 2989–3009. https://doi.org/10.1007/s13042-021-01390-w
+[1] Owuor, D. O., Runkler, T., Laurent, A., Orero, J. O., & Menya, E. O. (2021). Ant colony optimization for mining gradual patterns. *International Journal of Machine Learning and Cybernetics*, 12, 2989-3009. https://doi.org/10.1007/s13042-021-01390-w

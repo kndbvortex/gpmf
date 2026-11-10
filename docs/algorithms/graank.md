@@ -1,79 +1,80 @@
 # GRAANK
 
-Apriori-like gradual pattern mining using bitmap concordance matrices and rank correlations.
+Level-wise mining of gradual patterns with bitmap concordance matrices.
 
 ## Overview
 
-GRAANK (GRAdual rANKing) extracts frequent gradual patterns from numerical datasets by encoding attribute orderings as binary concordance matrices and combining them with bitwise AND operations. It generalises the Apriori principle to the gradual setting: a pattern is frequent if enough object pairs satisfy all its ordering constraints simultaneously.
+GRAANK (GRAdual rANKing) turns each gradual item into a binary matrix that says, for every pair of rows, whether the pair goes in the right direction. Combining items is then a bitwise AND of their matrices, and the support of a pattern is the share of pairs that survive. The search follows the Apriori principle: a pattern can only be frequent if its sub-patterns are.
 
-GRAANK is the standard baseline for gradual pattern mining. Its pair-based support measure is shared by ACO-GRAANK, TGrad, and EmergingGP, making results directly comparable across these algorithms. For datasets where memory is not a constraint, GRAANK is the recommended starting point.
+GRAANK is the usual baseline. ACO-GRAANK, TGrad and EmergingGP count support the same way, so their results can be compared with it directly. If your data fit in memory, it is a good place to start.
 
 ## Parameters
 
 **min_support** : float, default=0.5
-    Minimum fraction of valid object pairs. Must satisfy 0 < min_support ≤ 1.
+    Minimum share of pairs of rows that respect the pattern, with 0 < min_support ≤ 1.
+
+**maximal** : bool, default=False
+    Keep only maximal patterns. A pattern is dropped when it, or its complement, is a strict subset of another pattern of the output.
 
 **n_jobs** : int, default=1
-    Reserved for future parallelisation. Currently unused.
+    Accepted for a uniform interface. GRAANK itself runs on one core.
 
-## Support definition
+## Support
 
-Pair-based. For a dataset of n objects and a pattern P:
+Support on pairs. For n rows and a pattern P:
 
 ```
-supp(P) = |{(i,j) : i<j, all items of P satisfied by (oi, oj)}| / C(n, 2)
+supp(P) = |{(i, j) : i < j, the pair (o_i, o_j) respects every item of P}| / C(n, 2)
 ```
 
-A pair (oi, oj) satisfies item `Ak+` if `oi.Ak < oj.Ak`, and `Ak-` if `oi.Ak > oj.Ak`.
+A pair (o_i, o_j) respects `Ak+` when `o_i.Ak < o_j.Ak`, and `Ak-` when `o_i.Ak > o_j.Ak`.
 
-## Examples
+## Example
 
 ```python
->>> from gpmf.algorithms.graank import GRAANK
->>> import pandas as pd
->>> df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [1, 2, 3, 4]})
->>> algo = GRAANK(min_support=0.5)
->>> patterns = algo.fit(df).get_patterns()
->>> for p in patterns:
-...     print(p.to_string(), p.support)
-['A+', 'C+'] 1.0
-['A+', 'B-'] 1.0
-['B-', 'C+'] 1.0
+import pandas as pd
+from gpmf.algorithms.graank import GRAANK
+
+df = pd.DataFrame({'A': [1, 2, 3, 4], 'B': [4, 3, 2, 1], 'C': [1, 2, 3, 4]})
+
+for p in GRAANK(min_support=0.5, maximal=True).fit(df).get_patterns():
+    print(p.to_string(), p.support)
+# two patterns with support 1.0: {0+, 1-, 2+} and its complement {0-, 1+, 2-}
 ```
 
-Via the unified miner:
+The order of the items inside a pattern can change from one run to the next; the pattern is the same set.
+
+Without `maximal=True`, the output also contains the pairs `{0+, 1-}`, `{0+, 2+}` and so on, because GRAANK keeps a pattern when it was found in one orientation and its extension in the other.
+
+Through the unified miner:
 
 ```python
->>> from gpmf import GradualPatternMiner
->>> miner = GradualPatternMiner('graank', 'data.csv', min_support=0.5)
->>> patterns = miner.mine()
+from gpmf import GradualPatternMiner
+
+patterns = GradualPatternMiner('graank', 'data.csv', min_support=0.5).mine()
 ```
 
-Via CLI:
+From the command line:
 
 ```bash
 gradual-mine graank data.csv --min-support 0.5
+gradual-mine graank data.csv --min-support 0.5 --maximal
 ```
 
 ## Notes
 
-GRAANK returns only **maximal** frequent gradual patterns. Sub-patterns are pruned as longer ones are discovered, following the Apriori anti-monotony property.
+By default GRAANK behaves as published: a sub-pattern is removed once a longer pattern is found, but a pattern can stay when only its complement is contained in a longer one. Use `maximal=True` to get the maximal set, which is what so4gp returns.
 
-A pattern and its complement `{A+, B-}` / `{A-, B+}` represent identical object orderings. Only one canonical form appears in the output.
+Each gradual item needs an n × n matrix, so memory grows with the square of the number of rows. In practice this limits GRAANK to roughly 10 000 rows and 20 attributes. For larger data, GRITE and SGrite count support on chains and avoid this cost. For closed patterns, use GLCM or ParaMiner.
 
-Memory scales as O(n²) per gradual item, which limits practical use to datasets of roughly 10 000 rows and 20 attributes. For larger datasets, consider GRITE or SGrite (chain-based, no n² memory footprint). For closed patterns, prefer GLCM or ParaMiner.
+## See also
 
-## See Also
+[GRITE](grite.md): the same task with support counted on chains.
 
-[GRITE](grite.md)
-    Chain-based alternative; same conceptual task, different support definition.
+[ACO-GRAANK](ant_graank.md): a faster, approximate search with the same support.
 
-[ACO-GRAANK](ant_graank.md)
-    Heuristic extension of GRAANK for large datasets.
+[EmergingGP](emerging_gp.md): uses GRAANK to compare two datasets.
 
-[EmergingGP](emerging_gp.md)
-    Uses GRAANK internally to contrast two datasets.
+## Reference
 
-## References
-
-[1] Laurent, A., Lesot, M.-J., & Rifqi, M. (2009). GRAANK: Exploiting Rank Correlations for Extracting Gradual Itemsets. *Flexible Query Answering Systems*, LNCS 5822, 382–393. https://doi.org/10.1007/978-3-642-04957-6_33
+[1] Laurent, A., Lesot, M.-J., & Rifqi, M. (2009). GRAANK: Exploiting Rank Correlations for Extracting Gradual Itemsets. *Flexible Query Answering Systems (FQAS 2009)*, LNCS 5822, 382-393. https://doi.org/10.1007/978-3-642-04957-6_33
